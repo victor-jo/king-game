@@ -10,9 +10,12 @@ PID_FILE = os.path.expanduser("~/.aimguard.pid")
 
 
 def write_pid(pid_file: str = PID_FILE):
-    """현재 PID를 파일에 기록"""
-    with open(pid_file, "w") as f:
-        f.write(str(os.getpid()))
+    """현재 PID를 파일에 기록. 실패해도 경고만 출력하고 계속 실행."""
+    try:
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError as e:
+        print(f"[AimGuard] 경고: PID 파일 쓰기 실패 ({pid_file}): {e}", file=sys.stderr)
 
 
 def cleanup_pid(pid_file: str = PID_FILE):
