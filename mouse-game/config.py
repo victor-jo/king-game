@@ -73,7 +73,7 @@ class AppConfig:
     goal_score: int = 200
     accuracy_threshold: int = 80
     time_limit_keyboard: int = 30
-    motion_reps: int = 5
+    motion_reps: int = 10
     time_limit_motion: int = 40
 
     def __init__(self, config_file: str = CONFIG_FILE):
@@ -85,7 +85,7 @@ class AppConfig:
         self.goal_score = 200
         self.accuracy_threshold = 80
         self.time_limit_keyboard = 30
-        self.motion_reps = 5
+        self.motion_reps = 10
         self.time_limit_motion = 40
         # 오디오 게임
         self.db_threshold = 100

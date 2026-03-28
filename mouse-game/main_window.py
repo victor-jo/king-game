@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
         self.aim_target_label = QLabel("타겟 수:")
         settings_layout.addWidget(self.aim_target_label)
         self.target_combo = QComboBox()
-        for n in range(3, 11):
+        for n in range(3, 14):
             self.target_combo.addItem(f"{n}개", n)
         self.target_combo.setCurrentIndex(self.config.target_count - 3)
         settings_layout.addWidget(self.target_combo)
@@ -384,10 +384,10 @@ class MainWindow(QMainWindow):
         self.bug_time_label = QLabel("제한 시간:")
         settings_layout.addWidget(self.bug_time_label)
         self.bug_time_combo = QComboBox()
-        bug_time_options = [15, 20, 30, 45, 60]
+        bug_time_options = [10, 15, 20, 30, 45, 60]
         for t in bug_time_options:
             self.bug_time_combo.addItem(f"{t}초", t)
-        idx_bt = bug_time_options.index(self.config.time_limit_bug) if self.config.time_limit_bug in bug_time_options else 2
+        idx_bt = bug_time_options.index(self.config.time_limit_bug) if self.config.time_limit_bug in bug_time_options else 0
         self.bug_time_combo.setCurrentIndex(idx_bt)
         settings_layout.addWidget(self.bug_time_combo)
 
@@ -429,7 +429,7 @@ class MainWindow(QMainWindow):
         reps_options = [3, 5, 7, 10, 15]
         for r in reps_options:
             self.motion_reps_combo.addItem(f"{r}회", r)
-        idx_reps = reps_options.index(self.config.motion_reps) if self.config.motion_reps in reps_options else 1
+        idx_reps = reps_options.index(self.config.motion_reps) if self.config.motion_reps in reps_options else 3
         self.motion_reps_combo.setCurrentIndex(idx_reps)
         settings_layout.addWidget(self.motion_reps_combo)
 
