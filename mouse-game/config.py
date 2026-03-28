@@ -87,6 +87,9 @@ class AppConfig:
         self.time_limit_keyboard = 30
         self.motion_reps = 5
         self.time_limit_motion = 40
+        # 오디오 게임
+        self.db_threshold = 100
+        self.time_limit_audio = 30
 
     def save(self):
         """설정을 JSON 파일로 저장"""
@@ -100,6 +103,8 @@ class AppConfig:
             "time_limit_keyboard": self.time_limit_keyboard,
             "motion_reps": self.motion_reps,
             "time_limit_motion": self.time_limit_motion,
+            "db_threshold": self.db_threshold,
+            "time_limit_audio": self.time_limit_audio,
         }
         with open(self._config_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -124,6 +129,8 @@ class AppConfig:
             c.time_limit_keyboard = data.get("time_limit_keyboard", 30)
             c.motion_reps = data.get("motion_reps", 5)
             c.time_limit_motion = data.get("time_limit_motion", 40)
+            c.db_threshold = data.get("db_threshold", 100)
+            c.time_limit_audio = data.get("time_limit_audio", 30)
         except (json.JSONDecodeError, KeyError):
             pass
         return c
