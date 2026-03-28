@@ -548,7 +548,13 @@ class MainWindow(QMainWindow):
         """잠금 프로그램 감지됨 — 랜덤 게임 실행"""
         self._pending_app_name = app_name
         self._pending_app_path = app_path
-        self._launch_game(random.choice(["aim", "bug", "keyboard", "motion", "audio"]), app_name, app_path)
+        self._launch_game(
+            random.choices(
+                ["bug", "aim", "keyboard", "motion", "audio"],
+                weights=[10, 10, 30, 20, 30],
+            )[0],
+            app_name, app_path,
+        )
 
     def _launch_game(self, game_type: str, app_name: str, app_path: str):
         """게임 타입에 따라 위젯 시작 + 스택 전환"""
@@ -644,9 +650,11 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_motion_game_quit(self):
         """모션 게임 포기 — motion 제외 후 재추첨 (폴백 포함)"""
-        pool = ["aim", "bug", "keyboard"]
         self._launch_game(
-            random.choice(pool),
+            random.choices(
+                ["bug", "aim", "keyboard", "audio"],
+                weights=[10, 10, 30, 30],
+            )[0],
             self._pending_app_name,
             self._pending_app_path,
         )
@@ -654,9 +662,11 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_audio_game_quit(self):
         """오디오 게임 포기 — audio 제외 후 재추첨"""
-        pool = ["aim", "bug", "keyboard", "motion"]
         self._launch_game(
-            random.choice(pool),
+            random.choices(
+                ["bug", "aim", "keyboard", "motion"],
+                weights=[10, 10, 30, 20],
+            )[0],
             self._pending_app_name,
             self._pending_app_path,
         )
