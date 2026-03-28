@@ -1,5 +1,5 @@
 ---
-description: PySide6 앱 실행 방법
+description: KingGame 앱 실행 방법
 ---
 
 # 앱 실행
@@ -17,4 +17,11 @@ pip install -r requirements.txt
 2. 앱 실행
 ```bash
 cd /Users/hj/king-game/mouse-game && source venv/bin/activate && python main.py
+```
+
+---
+
+> **sj 환경 실행**
+```bash
+source /Users/sj/workspace/playground/king-game/mouse-game/.venv/bin/activate && python /Users/sj/workspace/playground/king-game/mouse-game/main.py
 ```
