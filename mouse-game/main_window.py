@@ -429,7 +429,7 @@ class MainWindow(QMainWindow):
         reps_options = [3, 5, 7, 10, 15]
         for r in reps_options:
             self.motion_reps_combo.addItem(f"{r}회", r)
-        idx_reps = reps_options.index(self.config.motion_reps) if self.config.motion_reps in reps_options else 1
+        idx_reps = reps_options.index(self.config.motion_reps) if self.config.motion_reps in reps_options else 3
         self.motion_reps_combo.setCurrentIndex(idx_reps)
         settings_layout.addWidget(self.motion_reps_combo)
 
