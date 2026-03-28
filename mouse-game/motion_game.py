@@ -130,6 +130,7 @@ class VideoThread(QThread):
     rep_updated = Signal(int)
     state_changed = Signal(str)
     angle_updated = Signal(float)
+    error_occurred = Signal(str)
 
     def __init__(self, camera_index: int, exercise: dict, parent=None):
         super().__init__(parent)
@@ -140,77 +141,91 @@ class VideoThread(QThread):
         self.stage = "UP"
 
     def run(self):
-        import cv2
-        import mediapipe as mp
-        from mediapipe.tasks import python as mp_tasks
-        from mediapipe.tasks.python import vision as mp_vision
+        try:
+            import cv2
+            import mediapipe as mp
+            from mediapipe.tasks import python as mp_tasks
+            from mediapipe.tasks.python import vision as mp_vision
+        except Exception as e:
+            self.error_occurred.emit(f"mediapipe 로드 실패: {e}")
+            return
 
         a_idx, b_idx, c_idx = self.exercise["joints"]
         down_thr = self.exercise["down_threshold"]
         up_thr = self.exercise["up_threshold"]
         inverted = self.exercise["inverted"]
 
-        options = mp_vision.PoseLandmarkerOptions(
-            base_options=mp_tasks.BaseOptions(model_asset_path=_MODEL_PATH),
-            running_mode=mp_vision.RunningMode.VIDEO,
-        )
-        cap = cv2.VideoCapture(self.camera_index)
+        try:
+            options = mp_vision.PoseLandmarkerOptions(
+                base_options=mp_tasks.BaseOptions(model_asset_path=_MODEL_PATH),
+                running_mode=mp_vision.RunningMode.VIDEO,
+            )
+            cap = cv2.VideoCapture(self.camera_index)
+            if not cap.isOpened():
+                self.error_occurred.emit("카메라를 열 수 없습니다")
+                return
+        except Exception as e:
+            self.error_occurred.emit(f"초기화 실패: {e}")
+            return
+
         timestamp_ms = 0
+        try:
+            with mp_vision.PoseLandmarker.create_from_options(options) as landmarker:
+                while self._running and cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
 
-        with mp_vision.PoseLandmarker.create_from_options(options) as landmarker:
-            while self._running and cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                    result = landmarker.detect_for_video(mp_img, timestamp_ms)
+                    timestamp_ms += 33
 
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-                result = landmarker.detect_for_video(mp_img, timestamp_ms)
-                timestamp_ms += 33
+                    if result.pose_landmarks:
+                        lm = result.pose_landmarks[0]
+                        h, w = frame.shape[:2]
 
-                if result.pose_landmarks:
-                    lm = result.pose_landmarks[0]
-                    h, w = frame.shape[:2]
+                        pa = [lm[a_idx].x, lm[a_idx].y]
+                        pb = [lm[b_idx].x, lm[b_idx].y]
+                        pc = [lm[c_idx].x, lm[c_idx].y]
+                        angle = _calculate_angle(pa, pb, pc)
+                        self.angle_updated.emit(round(angle, 1))
 
-                    pa = [lm[a_idx].x, lm[a_idx].y]
-                    pb = [lm[b_idx].x, lm[b_idx].y]
-                    pc = [lm[c_idx].x, lm[c_idx].y]
-                    angle = _calculate_angle(pa, pb, pc)
-                    self.angle_updated.emit(round(angle, 1))
+                        if not inverted:
+                            # DOWN=작은 각도, UP=큰 각도
+                            if angle < down_thr and self.stage != "DOWN":
+                                self.stage = "DOWN"
+                                self.state_changed.emit("DOWN")
+                            if angle > up_thr and self.stage == "DOWN":
+                                self.stage = "UP"
+                                self.count += 1
+                                self.state_changed.emit("UP")
+                                self.rep_updated.emit(self.count)
+                        else:
+                            # inverted: DOWN=큰 각도, UP=작은 각도
+                            if angle > down_thr and self.stage != "DOWN":
+                                self.stage = "DOWN"
+                                self.state_changed.emit("DOWN")
+                            if angle < up_thr and self.stage == "DOWN":
+                                self.stage = "UP"
+                                self.count += 1
+                                self.state_changed.emit("UP")
+                                self.rep_updated.emit(self.count)
 
-                    if not inverted:
-                        # DOWN=작은 각도, UP=큰 각도
-                        if angle < down_thr and self.stage != "DOWN":
-                            self.stage = "DOWN"
-                            self.state_changed.emit("DOWN")
-                        if angle > up_thr and self.stage == "DOWN":
-                            self.stage = "UP"
-                            self.count += 1
-                            self.state_changed.emit("UP")
-                            self.rep_updated.emit(self.count)
-                    else:
-                        # inverted: DOWN=큰 각도, UP=작은 각도
-                        if angle > down_thr and self.stage != "DOWN":
-                            self.stage = "DOWN"
-                            self.state_changed.emit("DOWN")
-                        if angle < up_thr and self.stage == "DOWN":
-                            self.stage = "UP"
-                            self.count += 1
-                            self.state_changed.emit("UP")
-                            self.rep_updated.emit(self.count)
+                        # 스켈레톤 오버레이
+                        pts = [(int(p.x * w), int(p.y * h)) for p in lm]
+                        for ai, bi in _POSE_CONNECTIONS:
+                            cv2.line(frame, pts[ai], pts[bi], (0, 255, 0), 2)
+                        for pt in pts:
+                            cv2.circle(frame, pt, 4, (0, 0, 255), -1)
 
-                    # 스켈레톤 오버레이
-                    pts = [(int(p.x * w), int(p.y * h)) for p in lm]
-                    for ai, bi in _POSE_CONNECTIONS:
-                        cv2.line(frame, pts[ai], pts[bi], (0, 255, 0), 2)
-                    for pt in pts:
-                        cv2.circle(frame, pt, 4, (0, 0, 255), -1)
-
-                h, w, ch = frame.shape
-                qt_img = QImage(frame.data, w, h, ch * w, QImage.Format.Format_BGR888)
-                self.frame_ready.emit(qt_img.copy())
-
-        cap.release()
+                    h, w, ch = frame.shape
+                    qt_img = QImage(frame.data, w, h, ch * w, QImage.Format.Format_BGR888)
+                    self.frame_ready.emit(qt_img.copy())
+        except Exception as e:
+            self.error_occurred.emit(f"실행 중 오류: {e}")
+        finally:
+            cap.release()
 
     def stop(self):
         self._running = False
@@ -263,10 +278,14 @@ class MotionGameWidget(QWidget):
         self.app_name = app_name
         self.app_path = app_path
 
-        # 의존성/카메라 확인 (lazy)
+        # 의존성/카메라/모델 파일 확인 (lazy)
         try:
-            import cv2
+            import cv2  # noqa: F401
             import mediapipe  # noqa: F401
+            from mediapipe.tasks import python as _mp_tasks  # noqa: F401
+            from mediapipe.tasks.python import vision as _mp_vision  # noqa: F401
+            if not os.path.exists(_MODEL_PATH):
+                raise RuntimeError(f"모델 파일 없음: {_MODEL_PATH}")
             cameras = _get_available_cameras()
             if not cameras:
                 raise RuntimeError("카메라 없음")
@@ -431,7 +450,14 @@ class MotionGameWidget(QWidget):
         self._thread.rep_updated.connect(self._update_rep)
         self._thread.state_changed.connect(self._update_state)
         self._thread.angle_updated.connect(self._update_angle)
+        self._thread.error_occurred.connect(self._on_thread_error)
         self._thread.start()
+
+    def _on_thread_error(self, message: str):
+        """VideoThread 오류 — 폴백으로 다른 게임 실행"""
+        self._countdown_timer.stop()
+        self._thread = None
+        self.game_quit.emit()
 
     def _stop_thread(self):
         if self._thread and self._thread.isRunning():
