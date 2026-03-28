@@ -638,6 +638,43 @@ from audio_game import AudioGameWidget
 
 ---
 
+**4-10. `closeEvent` — index 5 처리 추가**
+
+현재 코드:
+
+```python
+    def closeEvent(self, event):
+        """창 닫기 시 트레이로 최소화. 게임 진행 중이면 포기 처리 (cooldown 해제)."""
+        event.ignore()
+        current = self.stack.currentIndex()
+        if current in (1, 2, 3, 4):
+            # 모션 게임 카메라 스레드 명시적 중단 (game_quit 시그널 우회)
+            if current == 4:
+                self.motion_widget._stop_thread()
+            self._on_game_quit()
+        else:
+            self.hide()
+```
+
+다음으로 교체:
+
+```python
+    def closeEvent(self, event):
+        """창 닫기 시 트레이로 최소화. 게임 진행 중이면 포기 처리 (cooldown 해제)."""
+        event.ignore()
+        current = self.stack.currentIndex()
+        if current in (1, 2, 3, 4, 5):
+            if current == 4:
+                self.motion_widget._stop_thread()
+            elif current == 5:
+                self.audio_widget._stop_audio()
+            self._on_game_quit()
+        else:
+            self.hide()
+```
+
+---
+
 - [ ] **Step 1: 4-1 ~ 4-9 순서대로 main_window.py 편집 적용**
 
 - [ ] **Step 2: import 오류 없는지 확인**
