@@ -4,7 +4,7 @@ import sys
 import signal
 import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import main as m
@@ -20,11 +20,10 @@ def test_write_pid_creates_file(tmp_path):
 
 def test_cleanup_pid_removes_file(tmp_path):
     pid_file = str(tmp_path / "test.pid")
-    pid_file_path = str(pid_file)
-    with open(pid_file_path, "w") as f:
+    with open(pid_file, "w") as f:
         f.write("12345")
-    m.cleanup_pid(pid_file_path)
-    assert not os.path.exists(pid_file_path)
+    m.cleanup_pid(pid_file)
+    assert not os.path.exists(pid_file)
 
 
 def test_cleanup_pid_noop_if_missing(tmp_path):

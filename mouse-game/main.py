@@ -29,7 +29,7 @@ def kill_existing(pid_file: str = PID_FILE):
         with open(pid_file) as f:
             old_pid = int(f.read().strip())
         os.kill(old_pid, signal.SIGTERM)
-        time.sleep(0.8)  # 종료 대기
+        time.sleep(0.8)  # 종료 대기 (best-effort, 보장 안 됨)
     except (ProcessLookupError, PermissionError):
         pass  # 이미 종료됨
     except ValueError:
