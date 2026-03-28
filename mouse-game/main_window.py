@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QIcon, QAction
 
-from config import AppConfig
+from config import AppConfig, DEFAULT_WHITELIST
 from process_monitor import ProcessMonitor
 from aim_game import AimGameWidget
 from bug_game import BugGameWidget
@@ -97,7 +97,7 @@ class ToggleButton(QPushButton):
 
     def _update_style(self):
         if self._is_on:
-            self.setText("ON")
+            self.setText("제외")   # 화이트리스트
             self.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {ACCENT};
@@ -109,7 +109,7 @@ class ToggleButton(QPushButton):
                 }}
             """)
         else:
-            self.setText("OFF")
+            self.setText("감시")   # 감시 대상
             self.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {BORDER};
@@ -123,9 +123,9 @@ class ToggleButton(QPushButton):
 
 
 class AppRow(QFrame):
-    """프로그램 한 줄 행"""
+    """프로그램 한 줄 행 — 토글 ON = 화이트리스트(감시 제외)"""
 
-    def __init__(self, app_data: dict, parent=None):
+    def __init__(self, app_data: dict, whitelisted: bool = False, parent=None):
         super().__init__(parent)
         self.app_data = app_data
 
@@ -143,7 +143,6 @@ class AppRow(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 8, 16, 8)
 
-        # 앱 아이콘 (이모지)
         icons = {
             "KakaoTalk": "🟡", "Discord": "🟣", "Slack": "🟢",
             "Telegram": "🔵", "Steam": "⚫", "Google Chrome": "🔴",
@@ -155,14 +154,13 @@ class AppRow(QFrame):
         icon_label.setFixedWidth(30)
         layout.addWidget(icon_label)
 
-        # 앱 이름
         name_label = QLabel(app_data["name"])
         name_label.setFont(QFont("Arial", 14))
         name_label.setStyleSheet(f"color: {TEXT_PRIMARY};")
         layout.addWidget(name_label, 1)
 
-        # 토글 버튼
-        self.toggle = ToggleButton(app_data.get("locked", False))
+        # 토글 버튼 — ON(초록)=감시 제외, OFF(회색)=감시 대상
+        self.toggle = ToggleButton(whitelisted)
         layout.addWidget(self.toggle)
 
 
@@ -182,6 +180,7 @@ class MainWindow(QMainWindow):
         self.monitor.process_detected.connect(self._on_process_detected)
 
         self._monitoring = False
+        self._all_apps: list[dict] = []   # 캐시된 앱 목록
         self._pending_game_type = ""
         self._pending_app_name = ""
         self._pending_app_path = ""
@@ -233,6 +232,26 @@ class MainWindow(QMainWindow):
         # 시스템 트레이
         self._setup_tray()
 
+        # 자동 모니터링 시작
+        self._auto_start_monitoring()
+
+    def _auto_start_monitoring(self):
+        """시작 시 자동으로 모니터링 시작"""
+        from config import scan_installed_apps
+        self._all_apps = scan_installed_apps()
+        self._build_app_rows()  # UI 갱신
+        monitored = self.config.get_monitored_apps(self._all_apps)
+        self.monitor.set_locked_apps(monitored)
+        self.monitor.start()
+        self._monitoring = True
+        self.tray.show()
+        self.tray.showMessage(
+            "AimGuard",
+            f"감시 시작! {len(monitored)}개 앱 감시 중 🎯",
+            QSystemTrayIcon.MessageIcon.Information,
+            2000,
+        )
+
     # ─── 설정 화면 빌드 ─────────────────────────────
 
     def _build_settings_page(self) -> QWidget:
@@ -247,9 +266,9 @@ class MainWindow(QMainWindow):
         title.setStyleSheet(f"color: {ACCENT};")
 
         # 감시 상태 표시 라벨
-        self.status_label = QLabel("⏸ 감시 대기 중")
+        self.status_label = QLabel("🟢 감시 중")
         self.status_label.setFont(QFont("Arial", 13, QFont.Weight.Bold))
-        self.status_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        self.status_label.setStyleSheet(f"color: {ACCENT}; font-weight: bold;")
 
         title_row = QHBoxLayout()
         title_row.addWidget(title)
@@ -257,7 +276,7 @@ class MainWindow(QMainWindow):
         title_row.addWidget(self.status_label)
         layout.addLayout(title_row)
 
-        subtitle = QLabel("프로그램을 실행하면 랜덤 미니게임이 시작됩니다. 클리어하면 앱이 허용됩니다!")
+        subtitle = QLabel("설치된 모든 앱을 감시합니다. ON 토글 = 해당 앱 감시 제외(화이트리스트)")
         subtitle.setFont(QFont("Arial", 13))
         subtitle.setStyleSheet(f"color: {TEXT_SECONDARY};")
         layout.addWidget(subtitle)
@@ -270,7 +289,7 @@ class MainWindow(QMainWindow):
 
         # 프로그램 목록 헤더
         header_layout = QHBoxLayout()
-        header_label = QLabel("📋 잠금 프로그램 관리")
+        header_label = QLabel("📋 화이트리스트 관리 (ON = 감시 제외)")
         header_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         header_layout.addWidget(header_label)
         header_layout.addStretch()
@@ -285,11 +304,7 @@ class MainWindow(QMainWindow):
         self.apps_layout.setSpacing(6)
 
         self.app_rows: list[AppRow] = []
-        for app in self.config.apps:
-            row = AppRow(app)
-            self.app_rows.append(row)
-            self.apps_layout.addWidget(row)
-        self.apps_layout.addStretch()
+        self._build_app_rows()
 
         scroll.setWidget(scroll_widget)
         layout.addWidget(scroll, 1)
@@ -413,57 +428,63 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(settings_frame)
 
-        # 버튼 행: 감시 시작 + 트레이 최소화
+        # 버튼 행: 설정 저장 + 재스캔
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
 
-        self.start_btn = QPushButton("▶  감시 시작")
-        self.start_btn.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        self.start_btn.setFixedHeight(50)
-        self.start_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.start_btn.setStyleSheet(f"""
+        self.save_btn = QPushButton("💾  화이트리스트 저장")
+        self.save_btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        self.save_btn.setFixedHeight(44)
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ACCENT};
                 color: #ffffff;
                 border: none;
-                border-radius: 12px;
-                font-size: 16px;
+                border-radius: 10px;
             }}
-            QPushButton:hover {{
-                background-color: {ACCENT_HOVER};
-            }}
-            QPushButton:pressed {{
-                background-color: #3a9d96;
-            }}
+            QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}
         """)
-        self.start_btn.clicked.connect(self._toggle_monitoring)
-        btn_layout.addWidget(self.start_btn, 1)
+        self.save_btn.clicked.connect(self._save_and_restart_monitoring)
+        btn_layout.addWidget(self.save_btn, 1)
 
-        # 트레이 최소화 버튼
-        self.tray_btn = QPushButton("🔽 트레이")
-        self.tray_btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        self.tray_btn.setFixedSize(120, 50)
-        self.tray_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.tray_btn.setStyleSheet(f"""
+        self.rescan_btn = QPushButton("🔄  앱 재스캔")
+        self.rescan_btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        self.rescan_btn.setFixedHeight(44)
+        self.rescan_btn.setFixedWidth(140)
+        self.rescan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.rescan_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {BORDER};
                 color: {TEXT_SECONDARY};
                 border: none;
-                border-radius: 12px;
-                font-size: 14px;
+                border-radius: 10px;
             }}
-            QPushButton:hover {{
-                background-color: #3d4f6f;
-                color: {TEXT_PRIMARY};
-            }}
+            QPushButton:hover {{ color: {TEXT_PRIMARY}; background-color: #3d4f6f; }}
         """)
-        self.tray_btn.clicked.connect(self._minimize_to_tray)
-        self.tray_btn.setVisible(False)  # 감시 시작 전에는 숨김
-        btn_layout.addWidget(self.tray_btn)
+        self.rescan_btn.clicked.connect(self._rescan_apps)
+        btn_layout.addWidget(self.rescan_btn)
 
         layout.addLayout(btn_layout)
 
         return page
+
+    def _build_app_rows(self):
+        """현재 스캔된 앱 목록으로 앱 행 재생성 (stretch 포함 전체 제거 후 재구성)"""
+        # 레이아웃 아이템 전체 제거 (AppRow + stretch spacer 포함)
+        while self.apps_layout.count():
+            item = self.apps_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        self.app_rows.clear()
+
+        for app in self._all_apps:  # __init__에서 캐시된 목록 사용
+            is_whitelisted = app["name"] in self.config.whitelist
+            row = AppRow(app, whitelisted=is_whitelisted)
+            self.app_rows.append(row)
+            self.apps_layout.addWidget(row)
+        self.apps_layout.addStretch()  # 항상 마지막에 stretch 추가
 
     # ─── 시스템 트레이 ──────────────────────────────
 
@@ -489,75 +510,6 @@ class MainWindow(QMainWindow):
         self.tray.activated.connect(self._on_tray_activated)
 
     # ─── 이벤트 핸들러 ──────────────────────────────
-
-    @Slot()
-    def _toggle_monitoring(self):
-        if self._monitoring:
-            self._stop_monitoring()
-        else:
-            self._start_monitoring()
-
-    def _start_monitoring(self):
-        """감시 시작"""
-        # 설정 저장
-        self._save_config()
-
-        locked = self.config.get_locked_apps()
-        if not locked:
-            self.start_btn.setText("⚠️  잠금 프로그램을 선택하세요!")
-            return
-
-        self._monitoring = True
-        self.start_btn.setText("⏹  감시 중지")
-        self.start_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {DANGER};
-                color: #ffffff;
-                border: none;
-                border-radius: 12px;
-                font-size: 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: #e55a5a;
-            }}
-        """)
-
-        # 상태 표시 업데이트
-        self.status_label.setText("🟢 감시 중")
-        self.status_label.setStyleSheet(f"color: {ACCENT}; font-weight: bold;")
-        self.tray_btn.setVisible(True)
-
-        self.monitor.set_locked_apps(locked)
-        self.monitor.start()
-
-        # 트레이 아이콘 활성화 (창은 유지)
-        self.tray.show()
-        self.tray.showMessage("AimGuard", "감시가 시작되었습니다! 🎯", QSystemTrayIcon.MessageIcon.Information, 2000)
-
-    def _stop_monitoring(self):
-        """감시 중지"""
-        self._monitoring = False
-        self.monitor.stop()
-        self.start_btn.setText("▶  감시 시작")
-        self.start_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ACCENT};
-                color: #ffffff;
-                border: none;
-                border-radius: 12px;
-                font-size: 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {ACCENT_HOVER};
-            }}
-        """)
-
-        # 상태 표시 업데이트
-        self.status_label.setText("⏸ 감시 대기 중")
-        self.status_label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        self.tray_btn.setVisible(False)
 
     def _minimize_to_tray(self):
         """트레이로 최소화"""
@@ -610,14 +562,13 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_game_success(self):
         """게임 성공 — 프로그램 실행"""
-        # 현재 활성 게임 위젯 확인
         idx_to_widget = {1: self.aim_widget, 2: self.bug_widget,
                          3: self.keyboard_widget, 4: self.motion_widget}
         active_widget = idx_to_widget.get(self.stack.currentIndex(), self.aim_widget)
         app_path = active_widget.app_path
         process_name = ""
 
-        for app in self.config.apps:
+        for app in self._all_apps:
             if app["path"] == app_path:
                 process_name = app["process_name"]
                 break
@@ -645,14 +596,14 @@ class MainWindow(QMainWindow):
                          3: self.keyboard_widget, 4: self.motion_widget}
         active_widget = idx_to_widget.get(self.stack.currentIndex(), self.aim_widget)
         process_name = ""
-        for app in self.config.apps:
+        for app in self._all_apps:
             if app["path"] == active_widget.app_path:
                 process_name = app["process_name"]
                 break
         if process_name:
             self.monitor.clear_cooldown(process_name)
-
         self.stack.setCurrentIndex(0)
+        self.hide()
 
     @Slot()
     def _on_motion_game_quit(self):
@@ -689,10 +640,25 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QApplication
         QApplication.quit()
 
+    def _save_and_restart_monitoring(self):
+        """화이트리스트 저장 후 모니터링 재시작"""
+        self._save_config()
+        self.monitor.stop()
+        self._auto_start_monitoring()
+        self.hide()
+
+    def _rescan_apps(self):
+        """앱 목록 재스캔 후 UI + _all_apps 갱신"""
+        from config import scan_installed_apps
+        self._all_apps = scan_installed_apps()
+        self._build_app_rows()
+
     def _save_config(self):
-        """현재 UI 상태를 config에 반영하고 저장"""
-        for i, row in enumerate(self.app_rows):
-            self.config.apps[i]["locked"] = row.toggle.is_on
+        """현재 UI 토글 상태를 화이트리스트로 저장"""
+        self.config.whitelist = set(DEFAULT_WHITELIST)
+        for row in self.app_rows:
+            if row.toggle.is_on:
+                self.config.whitelist.add(row.app_data["name"])
         self.config.target_count = self.target_combo.currentData()
         self.config.time_limit = self.time_combo.currentData()
         self.config.time_limit_bug = self.bug_time_combo.currentData()
@@ -704,12 +670,6 @@ class MainWindow(QMainWindow):
         self.config.save()
 
     def closeEvent(self, event):
-        """창 닫기 시 트레이로 최소화 (감시 중일 때)"""
-        if self._monitoring:
-            event.ignore()
-            self.hide()
-        else:
-            self._save_config()
-            self.monitor.stop()
-            self.tray.hide()
-            event.accept()
+        """창 닫기 시 항상 트레이로 최소화"""
+        event.ignore()
+        self.hide()
