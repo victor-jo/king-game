@@ -24,22 +24,25 @@ EXERCISES = [
     {
         "name": "스쿼트", "emoji": "🏋️",
         "joints": (24, 26, 28),          # RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE
-        "down_threshold": 90,
-        "up_threshold": 160,
+        # 무릎 각도: 75° 미만까지 내려가야 DOWN, 168° 이상으로 펴야 UP
+        "down_threshold": 75,
+        "up_threshold": 168,
         "inverted": False,               # DOWN=꺾임(작은 각도), UP=펼침(큰 각도)
     },
     {
         "name": "푸쉬업", "emoji": "💪",
         "joints": (12, 14, 16),          # RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST
-        "down_threshold": 90,
-        "up_threshold": 160,
+        # 팔꿈치 각도: 75° 미만까지 구부려야 DOWN, 168° 이상으로 펴야 UP
+        "down_threshold": 75,
+        "up_threshold": 168,
         "inverted": False,
     },
     {
         "name": "싯업", "emoji": "🧘",
         "joints": (12, 24, 26),          # RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE
-        "down_threshold": 60,
-        "up_threshold": 120,
+        # 상체-골반-무릎 각도: 150° 이상으로 눕혀야 DOWN, 45° 미만으로 일어나야 UP
+        "down_threshold": 150,
+        "up_threshold": 45,
         "inverted": True,                # DOWN=누움(큰 각도), UP=일어남(작은 각도)
     },
 ]
