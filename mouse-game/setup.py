@@ -32,6 +32,7 @@ OPTIONS = {
         'main_window', 'config', 'process_monitor',
         'aim_game', 'bug_game', 'keyboard_game', 'motion_game', 'audio_game', 'sounds',
         'sounddevice', '_sounddevice',
+        'camera_permission',
     ],
     'excludes': [
         'PyQt5', 'PyQt6',
