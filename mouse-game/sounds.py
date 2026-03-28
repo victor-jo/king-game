@@ -7,9 +7,15 @@ WAV 파일을 코드로 생성하여 게임 사운드 제공.
 import math
 import os
 import struct
+import sys
 import wave
 
-SOUNDS_DIR = os.path.join(os.path.dirname(__file__), "sounds")
+if getattr(sys, "frozen", False):
+    # py2app 번들 실행 시 RESOURCEPATH 환경 변수 사용
+    _base = os.environ.get("RESOURCEPATH", os.path.dirname(sys.executable))
+    SOUNDS_DIR = os.path.join(_base, "sounds")
+else:
+    SOUNDS_DIR = os.path.join(os.path.dirname(__file__), "sounds")
 
 
 def _ensure_dir():
