@@ -47,5 +47,9 @@
   "target_count": 6,
   "time_limit": 8,
   "time_limit_bug": 30,
-  "goal_score": 200
+  "goal_score": 200,
+  "accuracy_threshold": 80,
+  "time_limit_keyboard": 30,
+  "motion_reps": 5,
+  "time_limit_motion": 40
 }
