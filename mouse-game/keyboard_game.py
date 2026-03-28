@@ -127,11 +127,22 @@ class TypingField(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        w, h = self.width(), self.height()
-        # _edit: 전체 영역 (텍스트 마진은 setTextMargins로 제어)
-        self._edit.setGeometry(0, 0, w, h)
-        # _lbl: _edit의 텍스트 마진과 동일한 x 오프셋 적용
-        self._lbl.setGeometry(self._PAD_H, 0, w - 2 * self._PAD_H, h)
+        self._edit.setGeometry(0, 0, self.width(), self.height())
+        self._sync_label_geometry()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._sync_label_geometry()
+
+    def _sync_label_geometry(self):
+        """QLineEdit의 실제 텍스트 y 위치를 읽어 레이블을 픽셀 단위로 정렬."""
+        cr = self._edit.cursorRect()   # QLineEdit이 텍스트를 그리는 정확한 y, height
+        self._lbl.setGeometry(
+            self._PAD_H,
+            cr.y(),
+            self.width() - 2 * self._PAD_H,
+            cr.height(),
+        )
 
     # ── 포커스 → 테두리 색 ────────────────────────────────────
 
