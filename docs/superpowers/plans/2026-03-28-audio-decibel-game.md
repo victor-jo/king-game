@@ -675,7 +675,7 @@ from audio_game import AudioGameWidget
 
 ---
 
-- [ ] **Step 1: 4-1 ~ 4-9 순서대로 main_window.py 편집 적용**
+- [ ] **Step 1: 4-1 ~ 4-10 순서대로 main_window.py 편집 적용**
 
 - [ ] **Step 2: import 오류 없는지 확인**
 
