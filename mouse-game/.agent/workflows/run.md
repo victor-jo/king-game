@@ -6,7 +6,15 @@ description: PySide6 앱 실행 방법
 
 // turbo-all
 
-1. 가상환경 활성화 후 앱 실행
+1. 최초 1회: 가상환경 생성 및 패키지 설치
 ```bash
-source /Users/sj/workspace/playground/pyqt-poc/venv/bin/activate && python /Users/sj/workspace/playground/pyqt-poc/main.py
+cd /Users/hj/king-game/mouse-game
+/Users/hj/miniconda3/bin/python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. 앱 실행
+```bash
+cd /Users/hj/king-game/mouse-game && source venv/bin/activate && python main.py
 ```
