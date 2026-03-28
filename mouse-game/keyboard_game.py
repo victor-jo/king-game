@@ -94,6 +94,8 @@ class TypingField(QWidget):
         self._edit.setStyleSheet(
             f"background: transparent; border: none; color: {CARD_BG}; padding: 0;"
         )
+        # ghost text 레이블과 x/y 위치 정확히 일치시키기 위해 텍스트 마진 설정
+        self._edit.setTextMargins(self._PAD_H, 0, self._PAD_H, 0)
         self._edit.textChanged.connect(self._on_edit_changed)
         self._edit.returnPressed.connect(self.returnPressed)
         self._edit.installEventFilter(self)
@@ -126,8 +128,10 @@ class TypingField(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         w, h = self.width(), self.height()
-        self._lbl.setGeometry(self._PAD_H, 0, w - 2 * self._PAD_H, h)
+        # _edit: 전체 영역 (텍스트 마진은 setTextMargins로 제어)
         self._edit.setGeometry(0, 0, w, h)
+        # _lbl: _edit의 텍스트 마진과 동일한 x 오프셋 적용
+        self._lbl.setGeometry(self._PAD_H, 0, w - 2 * self._PAD_H, h)
 
     # ── 포커스 → 테두리 색 ────────────────────────────────────
 
