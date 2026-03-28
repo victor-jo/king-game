@@ -47,7 +47,10 @@ EXERCISES = [
     },
 ]
 
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "pose_landmarker_lite.task")
+_MODEL_PATH = os.path.join(
+    os.environ.get("RESOURCEPATH", os.path.dirname(os.path.abspath(__file__))),
+    "pose_landmarker_lite.task",
+)
 
 _POSE_CONNECTIONS = [
     (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),

@@ -5,7 +5,10 @@ import os
 import plistlib
 from dataclasses import dataclass, field
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
+CONFIG_FILE = os.path.join(
+    os.environ.get("RESOURCEPATH", os.path.dirname(os.path.abspath(__file__))),
+    "config.json",
+)
 
 # ── 기본 화이트리스트 (감시 제외 시스템 앱) ────────────────────────────
 DEFAULT_WHITELIST = {
