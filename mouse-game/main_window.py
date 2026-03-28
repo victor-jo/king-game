@@ -1,5 +1,6 @@
 """메인 설정 화면 모듈"""
 
+import random
 import subprocess
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -7,7 +8,7 @@ from PySide6.QtWidgets import (
     QFrame, QStackedWidget, QSystemTrayIcon, QMenu,
 )
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QFont, QIcon, QAction
+from PySide6.QtGui import QFont, QAction
 
 from config import AppConfig, DEFAULT_WHITELIST
 from process_monitor import ProcessMonitor
@@ -180,7 +181,9 @@ class MainWindow(QMainWindow):
         self.monitor.process_detected.connect(self._on_process_detected)
 
         self._monitoring = False
-        self._all_apps: list[dict] = []   # 캐시된 앱 목록
+        # 앱 목록 초기 스캔 (settings_page 빌드 전에 필요)
+        from config import scan_installed_apps as _scan
+        self._all_apps: list[dict] = _scan()
         self._pending_game_type = ""
         self._pending_app_name = ""
         self._pending_app_path = ""
@@ -232,7 +235,7 @@ class MainWindow(QMainWindow):
         # 시스템 트레이
         self._setup_tray()
 
-        # 자동 모니터링 시작
+        # 자동 모니터링 시작 (앱 목록 재스캔 + 모니터 시작)
         self._auto_start_monitoring()
 
     def _auto_start_monitoring(self):
@@ -511,14 +514,9 @@ class MainWindow(QMainWindow):
 
     # ─── 이벤트 핸들러 ──────────────────────────────
 
-    def _minimize_to_tray(self):
-        """트레이로 최소화"""
-        self.hide()
-
     @Slot(str, str)
     def _on_process_detected(self, app_name: str, app_path: str):
         """잠금 프로그램 감지됨 — 랜덤 게임 실행"""
-        import random
         self._pending_app_name = app_name
         self._pending_app_path = app_path
         self._launch_game(random.choice(["aim", "bug", "keyboard", "motion"]), app_name, app_path)
@@ -608,7 +606,6 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_motion_game_quit(self):
         """모션 게임 포기 — motion 제외 후 재추첨 (폴백 포함)"""
-        import random
         pool = ["aim", "bug", "keyboard"]
         self._launch_game(
             random.choice(pool),
@@ -643,7 +640,7 @@ class MainWindow(QMainWindow):
     def _save_and_restart_monitoring(self):
         """화이트리스트 저장 후 모니터링 재시작"""
         self._save_config()
-        self.monitor.stop()
+        self.monitor.stop()  # NOTE: Qt 메인 스레드를 최대 3초 블로킹 (wait(3000))
         self._auto_start_monitoring()
         self.hide()
 
@@ -654,7 +651,10 @@ class MainWindow(QMainWindow):
         self._build_app_rows()
 
     def _save_config(self):
-        """현재 UI 토글 상태를 화이트리스트로 저장"""
+        """현재 UI 토글 상태를 화이트리스트로 저장
+
+        NOTE: 현재 _all_apps 스캔에서 누락된 앱은 화이트리스트에서 제거됨.
+        """
         self.config.whitelist = set(DEFAULT_WHITELIST)
         for row in self.app_rows:
             if row.toggle.is_on:
