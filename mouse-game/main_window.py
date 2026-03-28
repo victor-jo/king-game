@@ -16,6 +16,7 @@ from aim_game import AimGameWidget
 from bug_game import BugGameWidget
 from keyboard_game import KeyboardGameWidget
 from motion_game import MotionGameWidget
+from audio_game import AudioGameWidget
 
 
 # ─── 스타일 상수 ────────────────────────────────────
@@ -231,6 +232,15 @@ class MainWindow(QMainWindow):
         self.motion_widget.game_quit.connect(self._on_motion_game_quit)
         self.stack.addWidget(self.motion_widget)
 
+        # 오디오 게임 위젯 (stack index 5)
+        self.audio_widget = AudioGameWidget(
+            self.config.db_threshold, self.config.time_limit_audio
+        )
+        self.audio_widget.game_success.connect(self._on_game_success)
+        self.audio_widget.game_failed.connect(self._on_game_failed)
+        self.audio_widget.game_quit.connect(self._on_audio_game_quit)
+        self.stack.addWidget(self.audio_widget)
+
         # 시스템 트레이
         self._setup_tray()
 
@@ -435,6 +445,33 @@ class MainWindow(QMainWindow):
         self.motion_time_combo.setCurrentIndex(idx_mt)
         settings_layout.addWidget(self.motion_time_combo)
 
+        settings_layout.addSpacing(16)
+
+        # ── 오디오 설정 ──────────────────────────
+        settings_layout.addWidget(QLabel("🎤 오디오:"))
+
+        self.audio_db_label = QLabel("dB 기준:")
+        settings_layout.addWidget(self.audio_db_label)
+        self.audio_db_combo = QComboBox()
+        db_options = [80, 90, 100]
+        for d in db_options:
+            self.audio_db_combo.addItem(f"{d} dB", d)
+        idx_db = db_options.index(self.config.db_threshold) if self.config.db_threshold in db_options else 2
+        self.audio_db_combo.setCurrentIndex(idx_db)
+        settings_layout.addWidget(self.audio_db_combo)
+
+        settings_layout.addSpacing(8)
+
+        self.audio_time_label = QLabel("제한 시간:")
+        settings_layout.addWidget(self.audio_time_label)
+        self.audio_time_combo = QComboBox()
+        audio_time_options = [20, 30, 45]
+        for t in audio_time_options:
+            self.audio_time_combo.addItem(f"{t}초", t)
+        idx_at = audio_time_options.index(self.config.time_limit_audio) if self.config.time_limit_audio in audio_time_options else 1
+        self.audio_time_combo.setCurrentIndex(idx_at)
+        settings_layout.addWidget(self.audio_time_combo)
+
         layout.addWidget(settings_frame)
 
         # 버튼 행: 설정 저장 + 재스캔
@@ -525,7 +562,7 @@ class MainWindow(QMainWindow):
         """잠금 프로그램 감지됨 — 랜덤 게임 실행"""
         self._pending_app_name = app_name
         self._pending_app_path = app_path
-        self._launch_game(random.choice(["aim", "bug", "keyboard", "motion"]), app_name, app_path)
+        self._launch_game(random.choice(["aim", "bug", "keyboard", "motion", "audio"]), app_name, app_path)
 
     def _launch_game(self, game_type: str, app_name: str, app_path: str):
         """게임 타입에 따라 위젯 시작 + 스택 전환"""
@@ -559,6 +596,13 @@ class MainWindow(QMainWindow):
             self.motion_widget.start_game(app_name, app_path)
             self.stack.setCurrentIndex(4)
 
+        elif game_type == "audio":
+            db_threshold = self.audio_db_combo.currentData()
+            time_limit = self.audio_time_combo.currentData()
+            self.audio_widget.update_settings(db_threshold, time_limit)
+            self.audio_widget.start_game(app_name, app_path)
+            self.stack.setCurrentIndex(5)
+
         self.showNormal()
         self.activateWindow()
         self.raise_()
@@ -567,7 +611,8 @@ class MainWindow(QMainWindow):
     def _on_game_success(self):
         """게임 성공 — 프로그램 실행"""
         idx_to_widget = {1: self.aim_widget, 2: self.bug_widget,
-                         3: self.keyboard_widget, 4: self.motion_widget}
+                         3: self.keyboard_widget, 4: self.motion_widget,
+                         5: self.audio_widget}
         active_widget = idx_to_widget.get(self.stack.currentIndex(), self.aim_widget)
         app_path = active_widget.app_path
         process_name = ""
@@ -597,7 +642,8 @@ class MainWindow(QMainWindow):
     def _on_game_quit(self):
         """게임 포기 — 설정 화면으로 돌아가기"""
         idx_to_widget = {1: self.aim_widget, 2: self.bug_widget,
-                         3: self.keyboard_widget, 4: self.motion_widget}
+                         3: self.keyboard_widget, 4: self.motion_widget,
+                         5: self.audio_widget}
         active_widget = idx_to_widget.get(self.stack.currentIndex(), self.aim_widget)
         process_name = ""
         for app in self._all_apps:
@@ -613,6 +659,16 @@ class MainWindow(QMainWindow):
     def _on_motion_game_quit(self):
         """모션 게임 포기 — motion 제외 후 재추첨 (폴백 포함)"""
         pool = ["aim", "bug", "keyboard"]
+        self._launch_game(
+            random.choice(pool),
+            self._pending_app_name,
+            self._pending_app_path,
+        )
+
+    @Slot()
+    def _on_audio_game_quit(self):
+        """오디오 게임 포기 — audio 제외 후 재추첨"""
+        pool = ["aim", "bug", "keyboard", "motion"]
         self._launch_game(
             random.choice(pool),
             self._pending_app_name,
@@ -673,16 +729,20 @@ class MainWindow(QMainWindow):
         self.config.time_limit_keyboard = self.keyboard_time_combo.currentData()
         self.config.motion_reps = self.motion_reps_combo.currentData()
         self.config.time_limit_motion = self.motion_time_combo.currentData()
+        self.config.db_threshold = self.audio_db_combo.currentData()
+        self.config.time_limit_audio = self.audio_time_combo.currentData()
         self.config.save()
 
     def closeEvent(self, event):
         """창 닫기 시 트레이로 최소화. 게임 진행 중이면 포기 처리 (cooldown 해제)."""
         event.ignore()
         current = self.stack.currentIndex()
-        if current in (1, 2, 3, 4):
-            # 모션 게임 카메라 스레드 명시적 중단 (game_quit 시그널 우회)
+        if current in (1, 2, 3, 4, 5):
+            # 백그라운드 스레드 명시적 중단 (game_quit 시그널 우회)
             if current == 4:
                 self.motion_widget._stop_thread()
+            elif current == 5:
+                self.audio_widget._stop_audio()
             self._on_game_quit()
         else:
             self.hide()
