@@ -23,11 +23,29 @@ DATA_FILES = [
 ]
 OPTIONS = {
     'no_zip': True,
-    'packages': ['PySide6', 'psutil', 'cv2', 'mediapipe', 'numpy'],
+    'packages': ['PySide6', 'psutil', 'cv2', 'mediapipe', 'numpy', '_sounddevice_data'],
     'includes': [
         'main_window', 'config', 'process_monitor',
-        'aim_game', 'bug_game', 'keyboard_game', 'motion_game', 'sounds',
+        'aim_game', 'bug_game', 'keyboard_game', 'motion_game', 'audio_game', 'sounds',
+        'sounddevice', '_sounddevice',
     ],
+    'excludes': [
+        'PyQt5', 'PyQt6',
+        'matplotlib', 'mpl_toolkits',
+        'pygments',
+        'setuptools', 'pkg_resources', 'distutils',
+        'tkinter', '_tkinter', 'Tkinter',
+        'unittest', 'doctest', 'pydoc',
+        'IPython', 'ipython', 'ipykernel',
+        'scipy',
+        'pandas',
+        'PIL', 'Pillow',
+        'wx', 'gi', 'gtk',
+        'PyInstaller',
+        'cffi',
+    ],
+    'strip': True,
+    'optimize': 1,
 }
 
 setup(
