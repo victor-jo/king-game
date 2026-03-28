@@ -70,18 +70,33 @@ def _calculate_angle(a, b, c):
     return 360 - angle if angle > 180 else angle
 
 
+def _probe_camera_silent(index: int):
+    """카메라 인덱스 유효성을 stderr 출력 없이 확인. 열리면 True."""
+    import cv2
+    import os
+    import contextlib
+
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    old_stderr = os.dup(2)
+    os.dup2(devnull_fd, 2)
+    try:
+        cap = cv2.VideoCapture(index)
+        ok = cap.isOpened()
+        if ok:
+            cap.release()
+        return ok
+    finally:
+        os.dup2(old_stderr, 2)
+        os.close(devnull_fd)
+        os.close(old_stderr)
+
+
 def _get_available_cameras(max_test: int = 5):
     """사용 가능한 카메라 목록 반환. (index, name) 튜플 리스트."""
-    import cv2
     try:
         from AVFoundation import AVCaptureDevice, AVMediaTypeVideo
         av_devices = list(AVCaptureDevice.devicesWithMediaType_(AVMediaTypeVideo))
-        valid_opencv = []
-        for i in range(max_test):
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                valid_opencv.append(i)
-                cap.release()
+        valid_opencv = [i for i in range(max_test) if _probe_camera_silent(i)]
         external = [d for d in av_devices if "iPhone" in (d.modelID() or "")]
         internal = [d for d in av_devices if "iPhone" not in (d.modelID() or "")]
         ordered = external + internal
@@ -91,13 +106,7 @@ def _get_available_cameras(max_test: int = 5):
             cameras.append((opencv_idx, name))
         return cameras
     except Exception:
-        cameras = []
-        for i in range(max_test):
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                cameras.append((i, f"카메라 {i}"))
-                cap.release()
-        return cameras
+        return [(i, f"카메라 {i}") for i in range(max_test) if _probe_camera_silent(i)]
 
 
 def _get_default_camera_index(cameras):
@@ -275,15 +284,13 @@ class MotionGameWidget(QWidget):
         )
         self._refresh_hud()
 
-        # 카메라 콤보 업데이트
-        cam_list = _get_available_cameras()
+        # 카메라 콤보 업데이트 (이미 조회한 cameras 재사용)
         self._cam_combo.blockSignals(True)
         self._cam_combo.clear()
-        for idx, name in cam_list:
+        for idx, name in cameras:
             self._cam_combo.addItem(name, idx)
-        default_idx = _get_default_camera_index(cam_list)
         for i in range(self._cam_combo.count()):
-            if self._cam_combo.itemData(i) == default_idx:
+            if self._cam_combo.itemData(i) == camera_index:
                 self._cam_combo.setCurrentIndex(i)
                 break
         self._cam_combo.blockSignals(False)
