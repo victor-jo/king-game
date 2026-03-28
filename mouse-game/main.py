@@ -5,6 +5,7 @@ import sys
 import signal
 import time
 import atexit
+import logging
 
 PID_FILE = os.path.expanduser("~/.aimguard.pid")
 
@@ -39,6 +40,35 @@ def kill_existing(pid_file: str = PID_FILE):
         pass  # pid 파일 손상
 
 
+def _setup_signal_handlers(app):
+    """SIGTERM/SIGINT/SIGHUP 수신 시 Qt 이벤트 루프를 정상 종료한다.
+
+    Qt 이벤트 루프가 돌아가는 동안에는 Python signal handler가 즉시 실행되지
+    않는다. 100 ms QTimer로 Python 인터프리터에 제어를 넘겨 시그널을 전달받는다.
+    """
+    from PySide6.QtCore import QTimer
+
+    def _quit_app(signum, frame):
+        sig_name = signal.Signals(signum).name
+        logging.info("[AimGuard] 시그널 수신 (%s) → 종료", sig_name)
+        app.quit()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, _quit_app)
+
+    # SIGHUP: macOS에서 터미널 세션 종료 시 전송
+    if hasattr(signal, "SIGHUP"):
+        signal.signal(signal.SIGHUP, _quit_app)
+
+    # Qt 이벤트 루프 내에서 Python 시그널이 처리되도록 주기적으로 깨운다
+    _wakeup_timer = QTimer()
+    _wakeup_timer.setInterval(100)
+    _wakeup_timer.timeout.connect(lambda: None)  # no-op; Python GIL 반환용
+    _wakeup_timer.start()
+    # 타이머가 GC되지 않도록 app에 붙여둔다
+    app._signal_wakeup_timer = _wakeup_timer
+
+
 def main():
     # 1. 기존 인스턴스 종료
     kill_existing()
@@ -54,6 +84,9 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("AimGuard")
     app.setQuitOnLastWindowClosed(False)
+
+    # 4. OS 시그널 핸들러 등록 (SIGTERM / SIGINT / SIGHUP)
+    _setup_signal_handlers(app)
 
     window = MainWindow()
     # show() 호출하지 않음 — headless 시작

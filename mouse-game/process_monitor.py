@@ -93,9 +93,12 @@ class ProcessMonitor(QThread):
                     continue
                 if proc_name in self._existing_processes:
                     continue
-                if proc_name in self._cooldown:
-                    continue
                 if proc_name in self._allowed:
+                    continue
+
+                if proc_name in self._cooldown:
+                    # 게임 진행 중 재실행 시도 → 새 게임 없이 강제 종료만
+                    self._kill_process(proc_name)
                     continue
 
                 # 새로 실행된 프로세스 감지!
