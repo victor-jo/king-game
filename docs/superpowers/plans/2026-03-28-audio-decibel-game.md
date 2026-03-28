@@ -165,9 +165,11 @@ class AudioThread(QThread):
 
     sounddevice 기본 dtype(float32)을 사용하므로 샘플 범위는 [-1.0, 1.0].
     hold_elapsed는 frames/samplerate 기반으로 정확한 경과 시간을 누적한다.
+    InputStream 오픈 실패(권한 거부 등) 시 stream_error Signal을 발행한다.
     """
 
     level_updated = Signal(float, float)  # (표시 dB, 청크 경과 시간(초))
+    stream_error = Signal()               # InputStream 오픈 실패 시
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -187,14 +189,18 @@ class AudioThread(QThread):
             elapsed = frames / _SAMPLERATE  # 이번 청크의 정확한 경과 시간
             self.level_updated.emit(_dbfs_to_display(dbfs), elapsed)
 
-        with sd.InputStream(
-            channels=1,
-            samplerate=_SAMPLERATE,
-            blocksize=_BLOCKSIZE,
-            callback=_callback,
-        ):
-            while self._running:
-                self.msleep(50)
+        try:
+            with sd.InputStream(
+                channels=1,
+                samplerate=_SAMPLERATE,
+                blocksize=_BLOCKSIZE,
+                callback=_callback,
+            ):
+                while self._running:
+                    self.msleep(50)
+        except Exception:
+            # InputStream 오픈 실패(권한 거부, 디바이스 없음 등) → 위젯에 알림
+            self.stream_error.emit()
 
     def stop(self):
         self._running = False
@@ -257,9 +263,14 @@ class AudioGameWidget(QWidget):
         self._update_hold_bar(0.0)
         self._update_countdown(self._time_limit)
         self._result_label.setText("")
+        # 버튼 상태 리셋 (재도전 후 재시작 시 포기 버튼 복원)
+        self._quit_btn.show()
+        self._retry_btn.hide()
+        self._back_btn.hide()
 
         self._audio_thread = AudioThread(self)
         self._audio_thread.level_updated.connect(self._on_level_updated)  # (db, elapsed)
+        self._audio_thread.stream_error.connect(self._on_stream_error)
         self._audio_thread.start()
         self._countdown_timer.start()
         self._active = True
@@ -370,7 +381,10 @@ class AudioGameWidget(QWidget):
 
         root.addStretch()
 
-        # 포기 버튼
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        # 포기 버튼 (게임 진행 중)
         self._quit_btn = QPushButton("포기")
         self._quit_btn.setFont(QFont("Arial", 14))
         self._quit_btn.setFixedHeight(44)
@@ -386,9 +400,46 @@ class AudioGameWidget(QWidget):
             QPushButton:hover {{ background-color: #e05555; }}
         """)
         self._quit_btn.clicked.connect(self._on_quit)
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
         btn_layout.addWidget(self._quit_btn)
+
+        # 재도전 버튼 (실패 후 표시)
+        self._retry_btn = QPushButton("🔄 재도전")
+        self._retry_btn.setFont(QFont("Arial", 14))
+        self._retry_btn.setFixedHeight(44)
+        self._retry_btn.setFixedWidth(160)
+        self._retry_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._retry_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {_ACCENT};
+                color: #ffffff;
+                border: none;
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{ background-color: #45B7B8; }}
+        """)
+        self._retry_btn.clicked.connect(self._on_retry)
+        self._retry_btn.hide()
+        btn_layout.addWidget(self._retry_btn)
+
+        # 돌아가기 버튼 (실패 후 표시)
+        self._back_btn = QPushButton("↩ 돌아가기")
+        self._back_btn.setFont(QFont("Arial", 14))
+        self._back_btn.setFixedHeight(44)
+        self._back_btn.setFixedWidth(160)
+        self._back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._back_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #4a5568;
+                color: #ffffff;
+                border: none;
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{ background-color: #5a6578; }}
+        """)
+        self._back_btn.clicked.connect(self._on_back)
+        self._back_btn.hide()
+        btn_layout.addWidget(self._back_btn)
+
         btn_layout.addStretch()
         root.addLayout(btn_layout)
 
@@ -458,9 +509,35 @@ class AudioGameWidget(QWidget):
     def _on_fail(self):
         self._active = False
         self._stop_audio()
-        self._result_label.setText("❌ 시간 초과!")
+        # 실패 오버레이: 재도전 / 돌아가기 버튼 표시
+        self._result_label.setText("❌ 시간 초과! 다시 도전하세요.")
         self._result_label.setStyleSheet("color: #FF6B6B;")
-        QTimer.singleShot(600, lambda: self.game_failed.emit())
+        self._quit_btn.hide()
+        self._retry_btn.show()
+        self._back_btn.show()
+
+    @Slot()
+    def _on_retry(self):
+        """재도전: 상태 리셋 후 게임 재시작"""
+        self._retry_btn.hide()
+        self._back_btn.hide()
+        self._quit_btn.show()
+        self.start_game(self.app_name, self.app_path)
+
+    @Slot()
+    def _on_back(self):
+        """돌아가기: 포기와 동일 처리"""
+        self._retry_btn.hide()
+        self._back_btn.hide()
+        self._quit_btn.show()
+        self._on_quit()
+
+    @Slot()
+    def _on_stream_error(self):
+        """InputStream 오픈 실패 시 즉시 game_quit (폴백)"""
+        self._active = False
+        self._stop_audio()
+        self.game_quit.emit()
 
     @Slot()
     def _on_quit(self):
