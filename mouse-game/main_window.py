@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
         self.aim_target_label = QLabel("타겟 수:")
         settings_layout.addWidget(self.aim_target_label)
         self.target_combo = QComboBox()
-        for n in range(3, 11):
+        for n in range(3, 14):
             self.target_combo.addItem(f"{n}개", n)
         self.target_combo.setCurrentIndex(self.config.target_count - 3)
         settings_layout.addWidget(self.target_combo)
