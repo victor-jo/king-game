@@ -47,159 +47,6 @@ TOTAL_ROUNDS = 3
 KPM_GOAL = 500
 ACCURACY_GOAL = 90
 
-# 타이핑 필드 글자 색상
-_COL_UNTYPED = "#3d4f6f"   # 아직 안 친 글자: 연한 회색
-_COL_CORRECT = "#e2e8f0"   # 맞게 친 글자: 흰색
-_COL_WRONG   = "#FF6B6B"   # 틀리게 친 글자: 빨간색
-
-
-def _html_escape(ch: str) -> str:
-    return (ch.replace("&", "&amp;")
-              .replace("<", "&lt;")
-              .replace(">", "&gt;")
-              .replace(" ", "&nbsp;"))
-
-
-# ── 컬러 타이핑 입력 위젯 ────────────────────────────────────────────
-class TypingField(QWidget):
-    """타겟 문장을 ghost text로 보여주며 실시간 색상 피드백을 제공하는 입력 위젯.
-
-    - 아직 안 친 글자: 연한 회색(_COL_UNTYPED)
-    - 맞게 친 글자: 흰색(_COL_CORRECT)
-    - 틀리게 친 글자: 빨간색(_COL_WRONG)
-
-    QLabel(HTML 컬러 디스플레이)을 앞에, QLineEdit(투명 텍스트)를 뒤에 겹쳐서
-    한국어 IME 입력을 그대로 지원합니다.
-    """
-
-    textChanged = Signal(str)
-    returnPressed = Signal()
-    keyPressed = Signal(int)   # 타수/백스페이스 카운팅용 (key code 전달)
-
-    _PAD_H = 14
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._target = ""
-
-        # ── 컬러 디스플레이 레이블 ──────────────────────────
-        self._lbl = QLabel(self)
-        self._lbl.setTextFormat(Qt.TextFormat.RichText)
-        self._lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        self._lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self._lbl.setStyleSheet("background: transparent; border: none;")
-
-        # ── 실제 입력 필드 (텍스트를 배경색과 동일하게 숨김) ──
-        self._edit = QLineEdit(self)
-        self._edit.setStyleSheet(
-            f"background: transparent; border: none; color: {CARD_BG}; padding: 0;"
-        )
-        # ghost text 레이블과 x/y 위치 정확히 일치시키기 위해 텍스트 마진 설정
-        self._edit.setTextMargins(self._PAD_H, 0, self._PAD_H, 0)
-        self._edit.textChanged.connect(self._on_edit_changed)
-        self._edit.returnPressed.connect(self.returnPressed)
-        self._edit.installEventFilter(self)
-
-        font = QFont("Arial", 15)
-        self._lbl.setFont(font)
-        self._edit.setFont(font)
-
-        self.setMinimumHeight(52)
-        self._set_border(focused=False)
-
-    # ── 외부 API ────────────────────────────────────────────
-
-    def set_target(self, text: str):
-        self._target = text
-        self._edit.clear()
-        self._refresh("")
-
-    def clear(self):
-        self._edit.clear()
-
-    def text(self) -> str:
-        return self._edit.text()
-
-    def setFocus(self):
-        self._edit.setFocus()
-
-    # ── 레이아웃 ─────────────────────────────────────────────
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._edit.setGeometry(0, 0, self.width(), self.height())
-        self._sync_label_geometry()
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        self._sync_label_geometry()
-
-    def _sync_label_geometry(self):
-        """QLineEdit의 실제 텍스트 y 위치를 읽어 레이블을 픽셀 단위로 정렬."""
-        cr = self._edit.cursorRect()   # QLineEdit이 텍스트를 그리는 정확한 y, height
-        self._lbl.setGeometry(
-            self._PAD_H,
-            cr.y(),
-            self.width() - 2 * self._PAD_H,
-            cr.height(),
-        )
-
-    # ── 포커스 → 테두리 색 ────────────────────────────────────
-
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        self._set_border(focused=True)
-
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        self._set_border(focused=False)
-
-    def _set_border(self, focused: bool):
-        color = ACCENT if focused else BORDER
-        self.setStyleSheet(f"""
-            TypingField {{
-                background-color: {CARD_BG};
-                border: 2px solid {color};
-                border-radius: 8px;
-            }}
-        """)
-
-    # ── 내부 로직 ─────────────────────────────────────────────
-
-    def _on_edit_changed(self, text: str):
-        self._refresh(text)
-        self.textChanged.emit(text)
-
-    def _refresh(self, typed: str):
-        parts = []
-        for i, ch in enumerate(self._target):
-            esc = _html_escape(ch)
-            if i < len(typed):
-                color = _COL_CORRECT if typed[i] == ch else _COL_WRONG
-            else:
-                color = _COL_UNTYPED
-            parts.append(f'<span style="color:{color};">{esc}</span>')
-        self._lbl.setText("".join(parts))
-
-    # ── 이벤트 필터 (키 이벤트 → 상위로 전달) ─────────────────
-
-    def eventFilter(self, obj, event):
-        if obj is self._edit and isinstance(event, QKeyEvent):
-            if event.type() == QKeyEvent.Type.KeyPress:
-                key = event.key()
-                if key not in (
-                    Qt.Key.Key_Return, Qt.Key.Key_Enter,
-                    Qt.Key.Key_Shift, Qt.Key.Key_Control,
-                    Qt.Key.Key_Alt, Qt.Key.Key_Meta,
-                    Qt.Key.Key_CapsLock, Qt.Key.Key_Tab,
-                    Qt.Key.Key_Left, Qt.Key.Key_Right,
-                    Qt.Key.Key_Up, Qt.Key.Key_Down,
-                    Qt.Key.Key_Home, Qt.Key.Key_End,
-                ):
-                    self._set_border(focused=True)
-                    self.keyPressed.emit(key)
-        return super().eventFilter(obj, event)
-
 
 # ── 메인 게임 위젯 ────────────────────────────────────────────────────
 class KeyboardGameWidget(QWidget):
@@ -253,7 +100,7 @@ class KeyboardGameWidget(QWidget):
         self._fail_overlay.hide()
         self._start_round()
         self._ui_timer.start()
-        self._typing_field.setFocus()
+        self._input.setFocus()
 
     # ── UI 초기화 ───────────────────────────────────────
 
@@ -304,16 +151,27 @@ class KeyboardGameWidget(QWidget):
         self._target_card.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._target_card)
 
-        # 타이핑 입력 필드 (ghost text + 실시간 컬러 피드백)
+        # 타이핑 입력 필드
         input_hint = QLabel("다음 문장을 그대로 따라 입력하세요:")
         input_hint.setStyleSheet(f"color: {TEXT_SECONDARY};")
         layout.addWidget(input_hint)
 
-        self._typing_field = TypingField(self)
-        self._typing_field.textChanged.connect(self._on_text_changed)
-        self._typing_field.returnPressed.connect(self._on_enter)
-        self._typing_field.keyPressed.connect(self._on_key_pressed)
-        layout.addWidget(self._typing_field)
+        self._input = QLineEdit()
+        self._input.setFont(QFont("Arial", 15))
+        self._input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {CARD_BG};
+                color: {TEXT_PRIMARY};
+                border: 2px solid {BORDER};
+                border-radius: 8px;
+                padding: 10px 14px;
+            }}
+            QLineEdit:focus {{ border-color: {ACCENT}; }}
+        """)
+        self._input.textChanged.connect(self._on_text_changed)
+        self._input.returnPressed.connect(self._on_enter)
+        self._input.installEventFilter(self)
+        layout.addWidget(self._input)
 
         # 안내 텍스트
         hint = QLabel(
@@ -425,7 +283,7 @@ class KeyboardGameWidget(QWidget):
         self._start_time = 0.0
         self._backspace_count = 0
 
-        self._typing_field.set_target(quote)
+        self._input.clear()
         self._target_card.setText(f"{quote}\n— {author}")
 
         round_num = self._current_round + 1
@@ -486,12 +344,23 @@ class KeyboardGameWidget(QWidget):
 
     # ── 이벤트 핸들러 ────────────────────────────────────
 
-    def _on_key_pressed(self, key: int):
-        if not self._started:
-            self._started = True
-            self._start_time = time.time()
-        if key == Qt.Key.Key_Backspace:
-            self._backspace_count += 1
+    def eventFilter(self, obj, event):
+        if obj is self._input and isinstance(event, QKeyEvent):
+            if event.type() == QKeyEvent.Type.KeyPress:
+                key = event.key()
+                ignore_keys = (
+                    Qt.Key.Key_Return, Qt.Key.Key_Enter,
+                    Qt.Key.Key_Shift, Qt.Key.Key_Control,
+                    Qt.Key.Key_Alt, Qt.Key.Key_Meta,
+                    Qt.Key.Key_CapsLock, Qt.Key.Key_Tab,
+                )
+                if key not in ignore_keys:
+                    if not self._started:
+                        self._started = True
+                        self._start_time = time.time()
+                    if key == Qt.Key.Key_Backspace:
+                        self._backspace_count += 1
+        return super().eventFilter(obj, event)
 
     def _on_text_changed(self, text: str):
         elapsed = time.time() - self._start_time if self._started else 0.0
@@ -501,14 +370,14 @@ class KeyboardGameWidget(QWidget):
         if not self._started or self._finished:
             return
         elapsed = time.time() - self._start_time
-        self._update_stats_labels(self._typing_field.text(), elapsed)
+        self._update_stats_labels(self._input.text(), elapsed)
         if elapsed >= self.time_limit:
             self._on_fail(f"문장 {self._current_round + 1} 시간 초과!")
 
     def _on_enter(self):
         if self._finished:
             return
-        text = self._typing_field.text()
+        text = self._input.text()
         elapsed = time.time() - self._start_time if self._started else 0.0
         acc = self._calc_accuracy(text)
         kpm = self._calc_kpm(elapsed, text)
@@ -525,7 +394,7 @@ class KeyboardGameWidget(QWidget):
 
         if self._current_round < TOTAL_ROUNDS:
             self._start_round()
-            self._typing_field.setFocus()
+            self._input.setFocus()
         else:
             avg_kpm = sum(s["kpm"] for s in self._round_stats) / TOTAL_ROUNDS
             if avg_kpm >= KPM_GOAL:
@@ -555,7 +424,7 @@ class KeyboardGameWidget(QWidget):
         self._reset_game()
         self._start_round()
         self._ui_timer.start()
-        self._typing_field.setFocus()
+        self._input.setFocus()
 
     def _quit_game(self):
         self._finished = True
