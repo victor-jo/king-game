@@ -607,7 +607,6 @@ class VideoThread(QThread):
     def run(self):
         import cv2
         import mediapipe as mp
-        import numpy as np
         from mediapipe.tasks import python as mp_tasks
         from mediapipe.tasks.python import vision as mp_vision
 

@@ -29,6 +29,14 @@ class AppConfig:
     time_limit_bug: int = 30  # 벌레 게임: 제한 시간 (초)
     goal_score: int = 200  # 벌레 게임: 목표 점수
 
+    # Keyboard game
+    accuracy_threshold: int = 80    # % 정확도 기준 (0-100)
+    time_limit_keyboard: int = 30   # 초
+
+    # Motion game
+    motion_reps: int = 5            # 목표 반복 횟수
+    time_limit_motion: int = 40     # 초
+
     def save(self):
         """설정을 JSON 파일로 저장"""
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -48,6 +56,10 @@ class AppConfig:
                 config.time_limit = data.get("time_limit", 10)
                 config.time_limit_bug = data.get("time_limit_bug", 30)
                 config.goal_score = data.get("goal_score", 200)
+                config.accuracy_threshold = data.get("accuracy_threshold", 80)
+                config.time_limit_keyboard = data.get("time_limit_keyboard", 30)
+                config.motion_reps = data.get("motion_reps", 5)
+                config.time_limit_motion = data.get("time_limit_motion", 40)
                 return config
             except (json.JSONDecodeError, KeyError):
                 pass

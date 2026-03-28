@@ -13,6 +13,8 @@ from config import AppConfig
 from process_monitor import ProcessMonitor
 from aim_game import AimGameWidget
 from bug_game import BugGameWidget
+from keyboard_game import KeyboardGameWidget
+from motion_game import MotionGameWidget
 
 
 # ─── 스타일 상수 ────────────────────────────────────
@@ -180,6 +182,9 @@ class MainWindow(QMainWindow):
         self.monitor.process_detected.connect(self._on_process_detected)
 
         self._monitoring = False
+        self._pending_game_type = ""
+        self._pending_app_name = ""
+        self._pending_app_path = ""
 
         # 스택 위젯: 0=설정, 1=게임
         self.stack = QStackedWidget()
@@ -206,6 +211,24 @@ class MainWindow(QMainWindow):
         self.bug_widget.game_failed.connect(self._on_game_failed)
         self.bug_widget.game_quit.connect(self._on_game_quit)
         self.stack.addWidget(self.bug_widget)
+
+        # 타자 게임 위젯 (stack index 3)
+        self.keyboard_widget = KeyboardGameWidget(
+            self.config.accuracy_threshold, self.config.time_limit_keyboard
+        )
+        self.keyboard_widget.game_success.connect(self._on_game_success)
+        self.keyboard_widget.game_failed.connect(self._on_game_failed)
+        self.keyboard_widget.game_quit.connect(self._on_game_quit)
+        self.stack.addWidget(self.keyboard_widget)
+
+        # 모션 게임 위젯 (stack index 4)
+        self.motion_widget = MotionGameWidget(
+            self.config.motion_reps, self.config.time_limit_motion
+        )
+        self.motion_widget.game_success.connect(self._on_game_success)
+        self.motion_widget.game_failed.connect(self._on_game_failed)
+        self.motion_widget.game_quit.connect(self._on_motion_game_quit)
+        self.stack.addWidget(self.motion_widget)
 
         # 시스템 트레이
         self._setup_tray()
@@ -234,7 +257,7 @@ class MainWindow(QMainWindow):
         title_row.addWidget(self.status_label)
         layout.addLayout(title_row)
 
-        subtitle = QLabel("프로그램을 실행하기 전에 에임 트레이닝을 클리어하세요!")
+        subtitle = QLabel("프로그램을 실행하면 랜덤 미니게임이 시작됩니다. 클리어하면 앱이 허용됩니다!")
         subtitle.setFont(QFont("Arial", 13))
         subtitle.setStyleSheet(f"color: {TEXT_SECONDARY};")
         layout.addWidget(subtitle)
@@ -283,21 +306,10 @@ class MainWindow(QMainWindow):
         settings_layout = QHBoxLayout(settings_frame)
         settings_layout.setContentsMargins(16, 12, 16, 12)
 
-        settings_title = QLabel("⚙️ 게임 설정")
+        settings_title = QLabel("⚙️ 게임 설정 (랜덤 선택)")
         settings_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         settings_layout.addWidget(settings_title)
         settings_layout.addStretch()
-
-        # 게임 선택
-        settings_layout.addWidget(QLabel("게임:"))
-        self.game_type_combo = QComboBox()
-        self.game_type_combo.addItem("🎯 에임 게임", "aim")
-        self.game_type_combo.addItem("🪲 벌레 잡기", "bug")
-        self.game_type_combo.setCurrentIndex(0 if self.config.game_type == "aim" else 1)
-        self.game_type_combo.currentIndexChanged.connect(self._on_game_type_changed)
-        settings_layout.addWidget(self.game_type_combo)
-
-        settings_layout.addSpacing(16)
 
         # 에임 설정: 타겟 수
         self.aim_target_label = QLabel("타겟 수:")
@@ -345,10 +357,61 @@ class MainWindow(QMainWindow):
         self.bug_time_combo.setCurrentIndex(idx_bt)
         settings_layout.addWidget(self.bug_time_combo)
 
-        layout.addWidget(settings_frame)
+        settings_layout.addSpacing(16)
 
-        # 초기 게임 타입에 따른 UI 표시
-        self._update_settings_visibility()
+        # ── 타자 설정 ──────────────────────────
+        settings_layout.addWidget(QLabel("⌨️ 타자:"))
+
+        self.keyboard_acc_label = QLabel("정확도:")
+        settings_layout.addWidget(self.keyboard_acc_label)
+        self.keyboard_acc_combo = QComboBox()
+        acc_options = [60, 70, 80, 90, 100]
+        for a in acc_options:
+            self.keyboard_acc_combo.addItem(f"{a}%", a)
+        idx_acc = acc_options.index(self.config.accuracy_threshold) if self.config.accuracy_threshold in acc_options else 2
+        self.keyboard_acc_combo.setCurrentIndex(idx_acc)
+        settings_layout.addWidget(self.keyboard_acc_combo)
+
+        settings_layout.addSpacing(8)
+
+        self.keyboard_time_label = QLabel("제한 시간:")
+        settings_layout.addWidget(self.keyboard_time_label)
+        self.keyboard_time_combo = QComboBox()
+        kb_time_options = [15, 20, 30, 45, 60]
+        for t in kb_time_options:
+            self.keyboard_time_combo.addItem(f"{t}초", t)
+        idx_kt = kb_time_options.index(self.config.time_limit_keyboard) if self.config.time_limit_keyboard in kb_time_options else 2
+        self.keyboard_time_combo.setCurrentIndex(idx_kt)
+        settings_layout.addWidget(self.keyboard_time_combo)
+
+        settings_layout.addSpacing(16)
+
+        # ── 모션 설정 ──────────────────────────
+        settings_layout.addWidget(QLabel("🏋️ 모션:"))
+
+        self.motion_reps_label = QLabel("목표 횟수:")
+        settings_layout.addWidget(self.motion_reps_label)
+        self.motion_reps_combo = QComboBox()
+        reps_options = [3, 5, 7, 10, 15]
+        for r in reps_options:
+            self.motion_reps_combo.addItem(f"{r}회", r)
+        idx_reps = reps_options.index(self.config.motion_reps) if self.config.motion_reps in reps_options else 1
+        self.motion_reps_combo.setCurrentIndex(idx_reps)
+        settings_layout.addWidget(self.motion_reps_combo)
+
+        settings_layout.addSpacing(8)
+
+        self.motion_time_label = QLabel("제한 시간:")
+        settings_layout.addWidget(self.motion_time_label)
+        self.motion_time_combo = QComboBox()
+        mt_options = [20, 30, 40, 60, 90]
+        for t in mt_options:
+            self.motion_time_combo.addItem(f"{t}초", t)
+        idx_mt = mt_options.index(self.config.time_limit_motion) if self.config.time_limit_motion in mt_options else 2
+        self.motion_time_combo.setCurrentIndex(idx_mt)
+        settings_layout.addWidget(self.motion_time_combo)
+
+        layout.addWidget(settings_frame)
 
         # 버튼 행: 감시 시작 + 트레이 최소화
         btn_layout = QHBoxLayout()
@@ -502,21 +565,43 @@ class MainWindow(QMainWindow):
 
     @Slot(str, str)
     def _on_process_detected(self, app_name: str, app_path: str):
-        """잠금 프로그램 감지됨 — 선택된 게임 실행"""
-        game_type = self.game_type_combo.currentData()
+        """잠금 프로그램 감지됨 — 랜덤 게임 실행"""
+        import random
+        self._pending_app_name = app_name
+        self._pending_app_path = app_path
+        self._launch_game(random.choice(["aim", "bug", "keyboard", "motion"]), app_name, app_path)
 
-        if game_type == "bug":
-            time_limit = self.bug_time_combo.currentData()
-            goal_score = self.score_combo.currentData()
-            self.bug_widget.update_settings(time_limit, goal_score)
-            self.bug_widget.start_game(app_name, app_path)
-            self.stack.setCurrentIndex(2)
-        else:
+    def _launch_game(self, game_type: str, app_name: str, app_path: str):
+        """게임 타입에 따라 위젯 시작 + 스택 전환"""
+        self._pending_game_type = game_type
+
+        if game_type == "aim":
             target_count = self.target_combo.currentData()
             time_limit = self.time_combo.currentData()
             self.aim_widget.update_settings(target_count, time_limit)
             self.aim_widget.start_game(app_name, app_path)
             self.stack.setCurrentIndex(1)
+
+        elif game_type == "bug":
+            time_limit = self.bug_time_combo.currentData()
+            goal_score = self.score_combo.currentData()
+            self.bug_widget.update_settings(time_limit, goal_score)
+            self.bug_widget.start_game(app_name, app_path)
+            self.stack.setCurrentIndex(2)
+
+        elif game_type == "keyboard":
+            acc = self.keyboard_acc_combo.currentData()
+            time_limit = self.keyboard_time_combo.currentData()
+            self.keyboard_widget.update_settings(acc, time_limit)
+            self.keyboard_widget.start_game(app_name, app_path)
+            self.stack.setCurrentIndex(3)
+
+        elif game_type == "motion":
+            reps = self.motion_reps_combo.currentData()
+            time_limit = self.motion_time_combo.currentData()
+            self.motion_widget.update_settings(reps, time_limit)
+            self.motion_widget.start_game(app_name, app_path)
+            self.stack.setCurrentIndex(4)
 
         self.showNormal()
         self.activateWindow()
@@ -526,7 +611,9 @@ class MainWindow(QMainWindow):
     def _on_game_success(self):
         """게임 성공 — 프로그램 실행"""
         # 현재 활성 게임 위젯 확인
-        active_widget = self.aim_widget if self.stack.currentIndex() == 1 else self.bug_widget
+        idx_to_widget = {1: self.aim_widget, 2: self.bug_widget,
+                         3: self.keyboard_widget, 4: self.motion_widget}
+        active_widget = idx_to_widget.get(self.stack.currentIndex(), self.aim_widget)
         app_path = active_widget.app_path
         process_name = ""
 
@@ -554,7 +641,9 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_game_quit(self):
         """게임 포기 — 설정 화면으로 돌아가기"""
-        active_widget = self.aim_widget if self.stack.currentIndex() == 1 else self.bug_widget
+        idx_to_widget = {1: self.aim_widget, 2: self.bug_widget,
+                         3: self.keyboard_widget, 4: self.motion_widget}
+        active_widget = idx_to_widget.get(self.stack.currentIndex(), self.aim_widget)
         process_name = ""
         for app in self.config.apps:
             if app["path"] == active_widget.app_path:
@@ -564,6 +653,17 @@ class MainWindow(QMainWindow):
             self.monitor.clear_cooldown(process_name)
 
         self.stack.setCurrentIndex(0)
+
+    @Slot()
+    def _on_motion_game_quit(self):
+        """모션 게임 포기 — motion 제외 후 재추첨 (폴백 포함)"""
+        import random
+        pool = ["aim", "bug", "keyboard"]
+        self._launch_game(
+            random.choice(pool),
+            self._pending_app_name,
+            self._pending_app_path,
+        )
 
     def _show_settings(self):
         """설정 화면 표시"""
@@ -593,28 +693,15 @@ class MainWindow(QMainWindow):
         """현재 UI 상태를 config에 반영하고 저장"""
         for i, row in enumerate(self.app_rows):
             self.config.apps[i]["locked"] = row.toggle.is_on
-        self.config.game_type = self.game_type_combo.currentData()
         self.config.target_count = self.target_combo.currentData()
         self.config.time_limit = self.time_combo.currentData()
         self.config.time_limit_bug = self.bug_time_combo.currentData()
         self.config.goal_score = self.score_combo.currentData()
+        self.config.accuracy_threshold = self.keyboard_acc_combo.currentData()
+        self.config.time_limit_keyboard = self.keyboard_time_combo.currentData()
+        self.config.motion_reps = self.motion_reps_combo.currentData()
+        self.config.time_limit_motion = self.motion_time_combo.currentData()
         self.config.save()
-
-    def _on_game_type_changed(self):
-        """게임 타입 변경 시 설정 UI 토글"""
-        self._update_settings_visibility()
-
-    def _update_settings_visibility(self):
-        """게임 타입에 따라 설정 위젯 표시/숨김"""
-        is_aim = self.game_type_combo.currentData() == "aim"
-        self.aim_target_label.setVisible(is_aim)
-        self.target_combo.setVisible(is_aim)
-        self.aim_time_label.setVisible(is_aim)
-        self.time_combo.setVisible(is_aim)
-        self.bug_score_label.setVisible(not is_aim)
-        self.score_combo.setVisible(not is_aim)
-        self.bug_time_label.setVisible(not is_aim)
-        self.bug_time_combo.setVisible(not is_aim)
 
     def closeEvent(self, event):
         """창 닫기 시 트레이로 최소화 (감시 중일 때)"""
