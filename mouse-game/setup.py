@@ -5,13 +5,29 @@ Usage:
     python setup.py py2app
 """
 
+import os
 from setuptools import setup
 
 APP = ['main.py']
-DATA_FILES = []
+
+# sounds/ 디렉토리 내 모든 wav 파일 포함
+sounds_files = [
+    os.path.join('sounds', f)
+    for f in os.listdir('sounds')
+    if f.endswith('.wav')
+]
+
+DATA_FILES = [
+    ('', ['config.json', 'pose_landmarker_lite.task']),
+    ('sounds', sounds_files),
+]
 OPTIONS = {
     'no_zip': True,
-    'frameworks': ['/Users/hj/miniconda3/lib/libffi.8.dylib'],
+    'packages': ['PySide6', 'psutil', 'cv2', 'mediapipe', 'numpy'],
+    'includes': [
+        'main_window', 'config', 'process_monitor',
+        'aim_game', 'bug_game', 'keyboard_game', 'motion_game', 'sounds',
+    ],
 }
 
 setup(

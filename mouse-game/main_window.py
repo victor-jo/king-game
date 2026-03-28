@@ -670,6 +670,13 @@ class MainWindow(QMainWindow):
         self.config.save()
 
     def closeEvent(self, event):
-        """창 닫기 시 항상 트레이로 최소화"""
+        """창 닫기 시 트레이로 최소화. 게임 진행 중이면 포기 처리 (cooldown 해제)."""
         event.ignore()
-        self.hide()
+        current = self.stack.currentIndex()
+        if current in (1, 2, 3, 4):
+            # 모션 게임 카메라 스레드 명시적 중단 (game_quit 시그널 우회)
+            if current == 4:
+                self.motion_widget._stop_thread()
+            self._on_game_quit()
+        else:
+            self.hide()
