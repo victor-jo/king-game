@@ -23,6 +23,10 @@ DATA_FILES = [
 ]
 OPTIONS = {
     'no_zip': True,
+    'plist': {
+        'NSMicrophoneUsageDescription': 'AimGuard가 소리 데시벨 게임에 마이크를 사용합니다.',
+        'NSCameraUsageDescription': 'AimGuard가 모션 게임(스쿼트/푸시업)에 카메라를 사용합니다.',
+    },
     'packages': ['PySide6', 'psutil', 'cv2', 'mediapipe', 'numpy', '_sounddevice_data'],
     'includes': [
         'main_window', 'config', 'process_monitor',
