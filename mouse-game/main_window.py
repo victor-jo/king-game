@@ -337,140 +337,126 @@ class MainWindow(QMainWindow):
                 padding: 8px;
             }}
         """)
-        settings_layout = QHBoxLayout(settings_frame)
+        settings_layout = QVBoxLayout(settings_frame)
         settings_layout.setContentsMargins(16, 12, 16, 12)
+        settings_layout.setSpacing(0)
 
         settings_title = QLabel("⚙️ 게임 설정 (랜덤 선택)")
         settings_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        settings_title.setContentsMargins(0, 0, 0, 8)
         settings_layout.addWidget(settings_title)
-        settings_layout.addStretch()
 
-        # 에임 설정: 타겟 수
-        self.aim_target_label = QLabel("타겟 수:")
-        settings_layout.addWidget(self.aim_target_label)
+        def make_divider():
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setStyleSheet(f"color: {BORDER};")
+            line.setFixedHeight(1)
+            return line
+
+        def make_game_row(icon_name: str, options: list[tuple[str, QComboBox]]) -> QHBoxLayout:
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 8, 0, 8)
+            row.setSpacing(8)
+            name_lbl = QLabel(icon_name)
+            name_lbl.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+            name_lbl.setFixedWidth(100)
+            name_lbl.setStyleSheet(f"color: {TEXT_PRIMARY};")
+            row.addWidget(name_lbl)
+            row.addStretch()
+            for label_text, combo in options:
+                lbl = QLabel(label_text)
+                lbl.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px;")
+                row.addWidget(lbl)
+                row.addWidget(combo)
+                row.addSpacing(8)
+            return row
+
+        # ── 에임 ──────────────────────────
         self.target_combo = QComboBox()
         for n in range(3, 14):
             self.target_combo.addItem(f"{n}개", n)
         self.target_combo.setCurrentIndex(self.config.target_count - 3)
-        settings_layout.addWidget(self.target_combo)
 
-        settings_layout.addSpacing(8)
-
-        # 에임 설정: 제한 시간
-        self.aim_time_label = QLabel("제한 시간:")
-        settings_layout.addWidget(self.aim_time_label)
         self.time_combo = QComboBox()
         time_options = [5, 8, 10, 15, 20, 30]
         for t in time_options:
             self.time_combo.addItem(f"{t}초", t)
         idx = time_options.index(self.config.time_limit) if self.config.time_limit in time_options else 2
         self.time_combo.setCurrentIndex(idx)
-        settings_layout.addWidget(self.time_combo)
 
-        # 벌레 설정: 목표 점수
-        self.bug_score_label = QLabel("목표 점수:")
-        settings_layout.addWidget(self.bug_score_label)
+        settings_layout.addLayout(make_game_row("🎯 에임", [("타겟 수", self.target_combo), ("제한 시간", self.time_combo)]))
+        settings_layout.addWidget(make_divider())
+
+        # ── 벌레 ──────────────────────────
         self.score_combo = QComboBox()
         score_options = [100, 150, 200, 300, 500]
         for s in score_options:
             self.score_combo.addItem(f"{s}점", s)
         idx_s = score_options.index(self.config.goal_score) if self.config.goal_score in score_options else 2
         self.score_combo.setCurrentIndex(idx_s)
-        settings_layout.addWidget(self.score_combo)
 
-        settings_layout.addSpacing(8)
-
-        # 벌레 설정: 제한 시간
-        self.bug_time_label = QLabel("제한 시간:")
-        settings_layout.addWidget(self.bug_time_label)
         self.bug_time_combo = QComboBox()
         bug_time_options = [10, 15, 20, 30, 45, 60]
         for t in bug_time_options:
             self.bug_time_combo.addItem(f"{t}초", t)
         idx_bt = bug_time_options.index(self.config.time_limit_bug) if self.config.time_limit_bug in bug_time_options else 0
         self.bug_time_combo.setCurrentIndex(idx_bt)
-        settings_layout.addWidget(self.bug_time_combo)
 
-        settings_layout.addSpacing(16)
+        settings_layout.addLayout(make_game_row("🪲 벌레", [("목표 점수", self.score_combo), ("제한 시간", self.bug_time_combo)]))
+        settings_layout.addWidget(make_divider())
 
-        # ── 타자 설정 ──────────────────────────
-        settings_layout.addWidget(QLabel("⌨️ 타자:"))
-
-        self.keyboard_acc_label = QLabel("정확도:")
-        settings_layout.addWidget(self.keyboard_acc_label)
+        # ── 타자 ──────────────────────────
         self.keyboard_acc_combo = QComboBox()
         acc_options = [60, 70, 80, 90, 100]
         for a in acc_options:
             self.keyboard_acc_combo.addItem(f"{a}%", a)
         idx_acc = acc_options.index(self.config.accuracy_threshold) if self.config.accuracy_threshold in acc_options else 2
         self.keyboard_acc_combo.setCurrentIndex(idx_acc)
-        settings_layout.addWidget(self.keyboard_acc_combo)
 
-        settings_layout.addSpacing(8)
-
-        self.keyboard_time_label = QLabel("제한 시간:")
-        settings_layout.addWidget(self.keyboard_time_label)
         self.keyboard_time_combo = QComboBox()
         kb_time_options = [15, 20, 30, 45, 60]
         for t in kb_time_options:
             self.keyboard_time_combo.addItem(f"{t}초", t)
         idx_kt = kb_time_options.index(self.config.time_limit_keyboard) if self.config.time_limit_keyboard in kb_time_options else 2
         self.keyboard_time_combo.setCurrentIndex(idx_kt)
-        settings_layout.addWidget(self.keyboard_time_combo)
 
-        settings_layout.addSpacing(16)
+        settings_layout.addLayout(make_game_row("⌨️ 타자", [("정확도", self.keyboard_acc_combo), ("제한 시간", self.keyboard_time_combo)]))
+        settings_layout.addWidget(make_divider())
 
-        # ── 모션 설정 ──────────────────────────
-        settings_layout.addWidget(QLabel("🏋️ 모션:"))
-
-        self.motion_reps_label = QLabel("목표 횟수:")
-        settings_layout.addWidget(self.motion_reps_label)
+        # ── 모션 ──────────────────────────
         self.motion_reps_combo = QComboBox()
         reps_options = [3, 5, 7, 10, 15]
         for r in reps_options:
             self.motion_reps_combo.addItem(f"{r}회", r)
         idx_reps = reps_options.index(self.config.motion_reps) if self.config.motion_reps in reps_options else 3
         self.motion_reps_combo.setCurrentIndex(idx_reps)
-        settings_layout.addWidget(self.motion_reps_combo)
 
-        settings_layout.addSpacing(8)
-
-        self.motion_time_label = QLabel("제한 시간:")
-        settings_layout.addWidget(self.motion_time_label)
         self.motion_time_combo = QComboBox()
         mt_options = [20, 30, 40, 60, 90]
         for t in mt_options:
             self.motion_time_combo.addItem(f"{t}초", t)
         idx_mt = mt_options.index(self.config.time_limit_motion) if self.config.time_limit_motion in mt_options else 2
         self.motion_time_combo.setCurrentIndex(idx_mt)
-        settings_layout.addWidget(self.motion_time_combo)
 
-        settings_layout.addSpacing(16)
+        settings_layout.addLayout(make_game_row("🏋️ 모션", [("목표 횟수", self.motion_reps_combo), ("제한 시간", self.motion_time_combo)]))
+        settings_layout.addWidget(make_divider())
 
-        # ── 오디오 설정 ──────────────────────────
-        settings_layout.addWidget(QLabel("🎤 오디오:"))
-
-        self.audio_db_label = QLabel("dB 기준:")
-        settings_layout.addWidget(self.audio_db_label)
+        # ── 오디오 ──────────────────────────
         self.audio_db_combo = QComboBox()
         db_options = [80, 90, 100]
         for d in db_options:
             self.audio_db_combo.addItem(f"{d} dB", d)
         idx_db = db_options.index(self.config.db_threshold) if self.config.db_threshold in db_options else 2
         self.audio_db_combo.setCurrentIndex(idx_db)
-        settings_layout.addWidget(self.audio_db_combo)
 
-        settings_layout.addSpacing(8)
-
-        self.audio_time_label = QLabel("제한 시간:")
-        settings_layout.addWidget(self.audio_time_label)
         self.audio_time_combo = QComboBox()
         audio_time_options = [20, 30, 45]
         for t in audio_time_options:
             self.audio_time_combo.addItem(f"{t}초", t)
         idx_at = audio_time_options.index(self.config.time_limit_audio) if self.config.time_limit_audio in audio_time_options else 1
         self.audio_time_combo.setCurrentIndex(idx_at)
-        settings_layout.addWidget(self.audio_time_combo)
+
+        settings_layout.addLayout(make_game_row("🎤 오디오", [("dB 기준", self.audio_db_combo), ("제한 시간", self.audio_time_combo)]))
 
         layout.addWidget(settings_frame)
 
