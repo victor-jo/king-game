@@ -524,7 +524,7 @@ cd mouse-game && git add main.py tests/test_main_pid.py && git commit -m "feat: 
         self.tray.showMessage(
             "AimGuard",
             f"감시 시작! {len(monitored)}개 앱 감시 중 🎯",
-            self.tray.MessageIcon.Information,
+            QSystemTrayIcon.MessageIcon.Information,
             2000,
         )
 ```
