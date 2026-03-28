@@ -337,7 +337,7 @@ class KeyboardGameWidget(QWidget):
         return count
 
     def _calc_kpm(self, elapsed: float, current_text: str = "") -> float:
-        if elapsed < 0.1:
+        if elapsed <= 0:
             return 0.0
         total = self._count_jamo(current_text) + self._backspace_count
         return (total / elapsed) * 60.0
