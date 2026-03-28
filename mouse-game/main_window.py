@@ -188,6 +188,10 @@ class MainWindow(QMainWindow):
         self._pending_app_name = ""
         self._pending_app_path = ""
 
+        # 게임 선택 덱: 10회마다 모든 게임이 최소 1번씩 등장
+        # 비중: 벌레1 에임1 키보드3 모션2 소리3 (합=10)
+        self._game_deck: list[str] = []
+
         # 스택 위젯: 0=설정, 1=게임
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -541,6 +545,28 @@ class MainWindow(QMainWindow):
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._on_tray_activated)
 
+    def _next_game(self, exclude: str | None = None) -> str:
+        """덱에서 다음 게임을 꺼낸다.
+        덱이 비면 10회 주기(벌레1 에임1 키보드3 모션2 소리3)로 재생성 후 셔플.
+        exclude 게임은 건너뛰고 덱에 되돌린다(폴백용).
+        """
+        if not self._game_deck:
+            deck = ["bug", "aim", "keyboard", "keyboard", "keyboard",
+                    "motion", "motion", "audio", "audio", "audio"]
+            random.shuffle(deck)
+            self._game_deck = deck
+
+        if exclude is None:
+            return self._game_deck.pop(0)
+
+        # exclude를 피해 첫 번째 다른 게임을 꺼냄
+        for i, game in enumerate(self._game_deck):
+            if game != exclude:
+                self._game_deck.pop(i)
+                return game
+        # 덱에 exclude만 남은 극단적 상황 — 그냥 꺼냄
+        return self._game_deck.pop(0)
+
     # ─── 이벤트 핸들러 ──────────────────────────────
 
     @Slot(str, str)
@@ -548,13 +574,7 @@ class MainWindow(QMainWindow):
         """잠금 프로그램 감지됨 — 랜덤 게임 실행"""
         self._pending_app_name = app_name
         self._pending_app_path = app_path
-        self._launch_game(
-            random.choices(
-                ["bug", "aim", "keyboard", "motion", "audio"],
-                weights=[10, 10, 30, 20, 30],
-            )[0],
-            app_name, app_path,
-        )
+        self._launch_game(self._next_game(), app_name, app_path)
 
     def _launch_game(self, game_type: str, app_name: str, app_path: str):
         """게임 타입에 따라 위젯 시작 + 스택 전환"""
@@ -651,10 +671,7 @@ class MainWindow(QMainWindow):
     def _on_motion_game_quit(self):
         """모션 게임 포기 — motion 제외 후 재추첨 (폴백 포함)"""
         self._launch_game(
-            random.choices(
-                ["bug", "aim", "keyboard", "audio"],
-                weights=[10, 10, 30, 30],
-            )[0],
+            self._next_game(exclude="motion"),
             self._pending_app_name,
             self._pending_app_path,
         )
@@ -663,10 +680,7 @@ class MainWindow(QMainWindow):
     def _on_audio_game_quit(self):
         """오디오 게임 포기 — audio 제외 후 재추첨"""
         self._launch_game(
-            random.choices(
-                ["bug", "aim", "keyboard", "motion"],
-                weights=[10, 10, 30, 20],
-            )[0],
+            self._next_game(exclude="audio"),
             self._pending_app_name,
             self._pending_app_path,
         )
