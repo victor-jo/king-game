@@ -347,22 +347,14 @@ class KeyboardGameWidget(QWidget):
     def eventFilter(self, obj, event):
         if obj is self._input and isinstance(event, QKeyEvent):
             if event.type() == QKeyEvent.Type.KeyPress:
-                key = event.key()
-                ignore_keys = (
-                    Qt.Key.Key_Return, Qt.Key.Key_Enter,
-                    Qt.Key.Key_Shift, Qt.Key.Key_Control,
-                    Qt.Key.Key_Alt, Qt.Key.Key_Meta,
-                    Qt.Key.Key_CapsLock, Qt.Key.Key_Tab,
-                )
-                if key not in ignore_keys:
-                    if not self._started:
-                        self._started = True
-                        self._start_time = time.time()
-                    if key == Qt.Key.Key_Backspace:
-                        self._backspace_count += 1
+                if event.key() == Qt.Key.Key_Backspace:
+                    self._backspace_count += 1
         return super().eventFilter(obj, event)
 
     def _on_text_changed(self, text: str):
+        if text and not self._started:
+            self._started = True
+            self._start_time = time.time()
         elapsed = time.time() - self._start_time if self._started else 0.0
         self._update_stats_labels(text, elapsed)
 
