@@ -278,6 +278,16 @@ class MotionGameWidget(QWidget):
         self.app_name = app_name
         self.app_path = app_path
 
+        # macOS 카메라 권한 확인 — macOS 15에서 다이얼로그 미표시 문제 수정
+        # ensure_camera_permission()은 notDetermined 시 QEventLoop으로 대기
+        try:
+            from camera_permission import ensure_camera_permission
+            if not ensure_camera_permission():
+                QTimer.singleShot(0, lambda: self.game_quit.emit())
+                return
+        except Exception:
+            pass  # 임포트 실패 또는 비-macOS 환경 → 기존 로직으로 진행
+
         # 의존성/카메라/모델 파일 확인 (lazy)
         try:
             import cv2  # noqa: F401
