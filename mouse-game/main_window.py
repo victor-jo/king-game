@@ -177,8 +177,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(GLOBAL_STYLE)
 
         # 프로세스 모니터
-        self.monitor = ProcessMonitor(self)
-        self.monitor.process_detected.connect(self._on_process_detected)
+        self.monitor = self._create_monitor()
 
         self._monitoring = False
         # 앱 목록 초기 스캔 (settings_page 빌드 전에 필요)
@@ -238,12 +237,19 @@ class MainWindow(QMainWindow):
         # 자동 모니터링 시작 (앱 목록 재스캔 + 모니터 시작)
         self._auto_start_monitoring()
 
+    def _create_monitor(self) -> ProcessMonitor:
+        """새 ProcessMonitor 인스턴스 생성 및 시그널 연결"""
+        monitor = ProcessMonitor(self)
+        monitor.process_detected.connect(self._on_process_detected)
+        return monitor
+
     def _auto_start_monitoring(self):
-        """시작 시 자동으로 모니터링 시작"""
+        """시작 시 자동으로 모니터링 시작 (매번 새 인스턴스로 QThread 재시작 문제 방지)"""
         from config import scan_installed_apps
         self._all_apps = scan_installed_apps()
         self._build_app_rows()  # UI 갱신
         monitored = self.config.get_monitored_apps(self._all_apps)
+        self.monitor = self._create_monitor()
         self.monitor.set_locked_apps(monitored)
         self.monitor.start()
         self._monitoring = True
