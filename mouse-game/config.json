@@ -1,0 +1,51 @@
+{
+  "apps": [
+    {
+      "name": "KakaoTalk",
+      "process_name": "KakaoTalk",
+      "path": "/Applications/KakaoTalk.app",
+      "locked": true
+    },
+    {
+      "name": "Discord",
+      "process_name": "Discord",
+      "path": "/Applications/Discord.app",
+      "locked": false
+    },
+    {
+      "name": "Slack",
+      "process_name": "Slack",
+      "path": "/Applications/Slack.app",
+      "locked": false
+    },
+    {
+      "name": "Telegram",
+      "process_name": "Telegram",
+      "path": "/Applications/Telegram.app",
+      "locked": false
+    },
+    {
+      "name": "Steam",
+      "process_name": "steam_osx",
+      "path": "/Applications/Steam.app",
+      "locked": false
+    },
+    {
+      "name": "Google Chrome",
+      "process_name": "Google Chrome",
+      "path": "/Applications/Google Chrome.app",
+      "locked": false
+    },
+    {
+      "name": "Mattermost",
+      "process_name": "Mattermost",
+      "path": "/Applications/Mattermost.app",
+      "locked": false
+    }
+  ],
+  "game_type": "bug",
+  "target_count": 6,
+  "time_limit": 8,
+  "time_limit_bug": 30,
+  "goal_score": 200
+}
