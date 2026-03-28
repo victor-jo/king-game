@@ -32,7 +32,7 @@ rm -rf "$PYSIDE/Designer.app"
 echo "=== 5. 미사용 PySide6 Python 바인딩(.so) 제거 ==="
 UNUSED_SO=(
     Qt3DAnimation Qt3DCore Qt3DExtras Qt3DInput Qt3DLogic Qt3DRender
-    QtBluetooth QtCanvasPainter QtCharts QtConcurrent
+    QtBluetooth QtCanvasPainter QtCharts
     QtDataVisualization QtDesigner QtGraphs QtGraphsWidgets QtHelp QtHttpServer
     QtLocation QtNetworkAuth QtNfc
     QtPdf QtPdfWidgets QtPositioning
@@ -52,7 +52,7 @@ UNUSED_FW=(
     Qt3DQuick Qt3DQuickAnimation Qt3DQuickExtras Qt3DQuickInput
     Qt3DQuickLogic Qt3DQuickRender Qt3DQuickScene2D Qt3DQuickScene3D
     QtBluetooth QtCanvasPainter
-    QtCharts QtChartsQml QtConcurrent
+    QtCharts QtChartsQml
     QtDataVisualization QtDataVisualizationQml
     QtDesigner QtDesignerComponents
     QtGraphs QtGraphsWidgets QtHelp QtHttpServer
