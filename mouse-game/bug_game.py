@@ -175,10 +175,6 @@ class BugGameWidget(QWidget):
         self.shake_y = 0.0
         self.shake_intensity = 0.0
 
-        # 콤보
-        self.combo = 0
-        self.combo_timer = 0.0
-
         # 무기
         self.current_weapon = 0
         self.weapon_cooldowns: list[float] = [0.0] * len(WEAPONS)
@@ -290,8 +286,6 @@ class BugGameWidget(QWidget):
         self.mouse_pressed = False
         self.laser_first_point = None
         self.shake_intensity = 0.0
-        self.combo = 0
-        self.combo_timer = 0.0
         self._fail_overlay.hide()
         self._spawn_wave()
         self.game_timer.start()
@@ -314,12 +308,6 @@ class BugGameWidget(QWidget):
         # 쿨다운
         for i in range(len(self.weapon_cooldowns)):
             self.weapon_cooldowns[i] = max(0, self.weapon_cooldowns[i] - dt)
-
-        # 콤보 타이머
-        if self.combo_timer > 0:
-            self.combo_timer -= dt
-            if self.combo_timer <= 0:
-                self.combo = 0
 
         # 화면 흔들림 감소
         if self.shake_intensity > 0:
@@ -415,17 +403,12 @@ class BugGameWidget(QWidget):
 
     def _on_bug_killed(self, bug: Bug):
         """벌레 사망 처리 — 이펙트 + 사운드 + 점수"""
-        # 콤보
-        self.combo += 1
-        self.combo_timer = 2.0
-
-        # 점수 (콤보 배율)
-        multiplier = min(self.combo, 5)
-        score_gain = bug.bug_type["score"] * multiplier
+        # 점수
+        score_gain = bug.bug_type["score"]
         self.score += score_gain
 
         # 화면 흔들림
-        self.shake_intensity = min(8 + self.combo * 2, 20)
+        self.shake_intensity = min(self.shake_intensity + 8, 20)
 
         # 사운드
         self._play_sound("bug_death")
@@ -456,11 +439,10 @@ class BugGameWidget(QWidget):
         ))
 
         # 3) 점수 팝업 텍스트
-        combo_text = f"+{score_gain}" + (f" x{multiplier}!" if multiplier > 1 else "")
         self.effects.append(Effect(
             x=bx, y=by - 10, effect_type="score_popup",
-            vy=-2.5, text=combo_text,
-            color="#FFD700" if multiplier > 1 else "#ffffff",
+            vy=-2.5, text=f"+{score_gain}",
+            color="#ffffff",
             life=1.0,
         ))
 
@@ -785,10 +767,6 @@ class BugGameWidget(QWidget):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(self.laser_first_point, 5, 5)
 
-        # 콤보 표시
-        if self.combo > 1 and self.combo_timer > 0:
-            self._draw_combo(painter, w)
-
         # 무기바
         if self.shake_intensity > 0:
             painter.translate(-self.shake_x, -self.shake_y)
@@ -948,15 +926,6 @@ class BugGameWidget(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(c))
         painter.drawEllipse(QPointF(effect.x, effect.y), effect.radius, effect.radius * 0.6)
-
-    def _draw_combo(self, painter: QPainter, w: int):
-        """콤보 표시"""
-        alpha = int(min(255, self.combo_timer * 200))
-        c = QColor("#FFD700")
-        c.setAlpha(alpha)
-        painter.setPen(c)
-        painter.setFont(QFont("Arial", 28, QFont.Weight.Bold))
-        painter.drawText(QRectF(w - 200, 75, 180, 40), Qt.AlignmentFlag.AlignRight, f"🔥 x{self.combo} COMBO")
 
     def _draw_weapon_bar(self, painter: QPainter, w: int, h: int):
         bar_h = 55

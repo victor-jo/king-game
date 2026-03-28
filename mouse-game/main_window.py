@@ -384,10 +384,10 @@ class MainWindow(QMainWindow):
         self.bug_time_label = QLabel("제한 시간:")
         settings_layout.addWidget(self.bug_time_label)
         self.bug_time_combo = QComboBox()
-        bug_time_options = [15, 20, 30, 45, 60]
+        bug_time_options = [10, 15, 20, 30, 45, 60]
         for t in bug_time_options:
             self.bug_time_combo.addItem(f"{t}초", t)
-        idx_bt = bug_time_options.index(self.config.time_limit_bug) if self.config.time_limit_bug in bug_time_options else 2
+        idx_bt = bug_time_options.index(self.config.time_limit_bug) if self.config.time_limit_bug in bug_time_options else 0
         self.bug_time_combo.setCurrentIndex(idx_bt)
         settings_layout.addWidget(self.bug_time_combo)
 
